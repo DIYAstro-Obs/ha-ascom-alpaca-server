@@ -60,7 +60,7 @@ class CalibratorChannel:
 
     name: str
     description: str
-    max_brightness: int
+    get_max_brightness: Callable[[], int]
     get_brightness: Callable[[], Awaitable[int | None]]
     get_is_on: Callable[[], Awaitable[bool | None]]
     turn_on: Callable[[int], Awaitable[None]]

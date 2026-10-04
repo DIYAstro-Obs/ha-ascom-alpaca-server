@@ -34,6 +34,7 @@ from .const import (
     CONF_SWITCH_ENTITIES,
     CONF_SWITCH_NAMES,
 )
+from .unit_conversion import to_alpaca_unit
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -200,7 +201,9 @@ def _build_oc_channels(
         if not entity_ids:
             continue
 
-        async def _get_value(eids: list[str] = entity_ids) -> float | None:
+        async def _get_value(
+            prop: str = prop_name, eids: list[str] = entity_ids
+        ) -> float | None:
             for eid in eids:
                 state = hass.states.get(eid)
                 if state is None or state.state in (
@@ -208,9 +211,12 @@ def _build_oc_channels(
                 ):
                     continue
                 try:
-                    return float(state.state)
+                    value = float(state.state)
                 except (ValueError, TypeError):
                     continue
+                return to_alpaca_unit(
+                    prop, value, state.attributes.get("unit_of_measurement")
+                )
             return None
 
         async def _get_seconds(eids: list[str] = entity_ids) -> float:
@@ -257,6 +263,10 @@ def _build_calibrator_channel(
     - switch + number      → on/off from switch, brightness from number
     - number only          → on = value > 0, brightness from number
     - light + number       → on/off from light, brightness from number
+    - switch + light       → on/off from switch, brightness from the light
+
+    The brightness scale is 0-255 for lights and switches; for a number
+    entity it is 0 up to the entity's ``max`` attribute.
     """
     # Determine the on/off entity domain
     onoff_domain = ""
@@ -272,6 +282,24 @@ def _build_calibrator_channel(
         brightness_entity  # explicit brightness entity (number/light)
         or onoff_domain == "light"  # light entities have brightness attribute
     )
+
+    # A light that only provides brightness (distinct from the on/off entity)
+    separate_light = bool(
+        brightness_entity
+        and brightness_domain == "light"
+        and brightness_entity != onoff_entity
+    )
+
+    # --- get_max_brightness ---
+    def _get_max_brightness() -> int:
+        if brightness_entity and brightness_domain in ("number", "input_number"):
+            state = hass.states.get(brightness_entity)
+            if state is not None:
+                try:
+                    return max(1, int(float(state.attributes.get("max"))))
+                except (ValueError, TypeError):
+                    pass
+        return _CALIBRATOR_MAX_BRIGHTNESS
 
     # --- get_is_on ---
     if onoff_entity:
@@ -335,13 +363,19 @@ def _build_calibrator_channel(
                 {"entity_id": brightness_entity, "value": brightness},
             )
 
+        # A separate brightness light always receives the brightness
+        if separate_light:
+            await hass.services.async_call(
+                "light",
+                "turn_on",
+                {"entity_id": brightness_entity, "brightness": brightness},
+            )
+
         # Turn on the on/off entity
         if onoff_entity and onoff_domain == "light":
             service_data: dict[str, Any] = {"entity_id": onoff_entity}
-            # Only pass brightness if the light itself controls it
-            if not brightness_entity or brightness_domain not in (
-                "number", "input_number"
-            ):
+            # Only pass brightness if this light itself controls it
+            if not brightness_entity or brightness_entity == onoff_entity:
                 service_data["brightness"] = brightness
             await hass.services.async_call("light", "turn_on", service_data)
         elif onoff_entity and onoff_domain == "switch":
@@ -361,6 +395,10 @@ def _build_calibrator_channel(
                 brightness_domain,
                 "set_value",
                 {"entity_id": brightness_entity, "value": 0},
+            )
+        if separate_light:
+            await hass.services.async_call(
+                "light", "turn_off", {"entity_id": brightness_entity}
             )
         if onoff_entity and onoff_domain == "light":
             await hass.services.async_call(
@@ -383,7 +421,7 @@ def _build_calibrator_channel(
     return CalibratorChannel(
         name=name,
         description=description,
-        max_brightness=_CALIBRATOR_MAX_BRIGHTNESS,
+        get_max_brightness=_get_max_brightness,
         get_brightness=_get_brightness,
         get_is_on=_get_is_on,
         turn_on=_turn_on,

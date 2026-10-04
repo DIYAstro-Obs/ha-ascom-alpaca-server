@@ -84,17 +84,21 @@ def create_covercalibrator_handler(
             return {"Value": brightness if brightness is not None else 0}
 
         if action_lower == "maxbrightness":
-            return {"Value": channel.max_brightness}
+            return {"Value": channel.get_max_brightness()}
 
         # --- Calibrator actions ---
 
         if action_lower == "calibratoron":
             try:
-                brightness = int(params.get("Brightness", channel.max_brightness))
-            except (ValueError, TypeError):
-                brightness = channel.max_brightness
+                brightness = int(params["Brightness"])
+            except (KeyError, ValueError, TypeError):
+                return {
+                    "Value": None,
+                    "ErrorNumber": 0x401,
+                    "ErrorMessage": "Parameter 'Brightness' missing or invalid",
+                }
             # Clamp to valid range
-            brightness = max(0, min(brightness, channel.max_brightness))
+            brightness = max(0, min(brightness, channel.get_max_brightness()))
             await channel.turn_on(brightness)
             return {"Value": None}
 
