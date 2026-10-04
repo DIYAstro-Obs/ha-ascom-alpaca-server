@@ -1,0 +1,70 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "ASCOM Alpaca Server Setup",
+                "description": "Configure the Alpaca server.",
+                "data": {
+                    "alpaca_port": "Alpaca API Port",
+                    "alpaca_discovery": "Enable Alpaca Discovery"
+                },
+                "data_description": {
+                    "alpaca_port": "TCP port for the Alpaca API (default: 5555)",
+                    "alpaca_discovery": "Respond to Alpaca UDP discovery broadcasts on port 32227"
+                }
+            }
+        },
+        "abort": {
+            "already_configured": "ASCOM Alpaca Server is already configured."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "ASCOM Alpaca Server",
+                "description": "Configure device mappings and server settings."
+            },
+            "general_settings": {
+                "title": "General Settings",
+                "data": {
+                    "alpaca_port": "Alpaca API Port",
+                    "alpaca_discovery": "Enable Alpaca Discovery"
+                }
+            },
+            "map_switches": {
+                "title": "Map Switch Devices",
+                "description": "Select Home Assistant switch entities to expose as Alpaca Switch devices.",
+                "data": {
+                    "switch_entities": "Switch Entities"
+                }
+            },
+            "map_calibrator": {
+                "title": "Map CoverCalibrator (Flat Panel)",
+                "description": "Map Home Assistant entities to an Alpaca CoverCalibrator device. Use a light entity for full control (on/off + brightness), a switch for on/off only, or combine a switch with a number entity for separate brightness control. At least one field must be set.",
+                "data": {
+                    "calibrator_onoff_entity": "On/Off Entity (light or switch)",
+                    "calibrator_brightness_entity": "Brightness Entity (light or number, optional)"
+                }
+            },
+            "map_observing": {
+                "title": "Map ObservingConditions Sensors",
+                "description": "Assign Home Assistant sensor entities to Alpaca ObservingConditions properties. You can select multiple sensors per property — if the primary sensor is unavailable, the next one is used as fallback. Leave empty for properties you don't need.",
+                "data": {
+                    "temperature": "Temperature",
+                    "humidity": "Humidity",
+                    "pressure": "Pressure",
+                    "dewpoint": "Dew Point",
+                    "windspeed": "Wind Speed",
+                    "windgust": "Wind Gust",
+                    "winddirection": "Wind Direction",
+                    "cloudcover": "Cloud Cover",
+                    "skybrightness": "Sky Brightness",
+                    "skyquality": "Sky Quality",
+                    "skytemperature": "Sky Temperature",
+                    "rainrate": "Rain Rate",
+                    "starfwhm": "Star FWHM"
+                }
+            }
+        }
+    }
+}
