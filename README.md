@@ -57,3 +57,5 @@ The project is structured with a strict separation between:
 - `alpaca/`: Standalone Alpaca protocol implementation (handlers, server, discovery).
 - `ha_bridge.py`: The bridge layer connecting Home Assistant's state engine and services to the Alpaca logic.
 - `config_flow.py`: UI configuration and entity mapping logic.
+
+Run the unit tests with `python -m pytest`. Only `pytest` is required; Home Assistant is stubbed (see `tests/ha_stubs.py`).
