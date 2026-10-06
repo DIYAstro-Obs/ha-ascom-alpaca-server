@@ -16,20 +16,31 @@ from .alpaca import (
     AlpacaDevice,
     AlpacaDeviceRegistry,
     CalibratorChannel,
+    DomeChannel,
     OCSensorChannel,
     SwitchChannel,
     DEVICE_TYPE_COVERCALIBRATOR,
+    DEVICE_TYPE_DOME,
     DEVICE_TYPE_OBSERVINGCONDITIONS,
     DEVICE_TYPE_SWITCH,
 )
 from .alpaca.handlers import (
     create_covercalibrator_handler,
+    create_dome_handler,
     create_oc_handler,
     create_switch_handler,
+)
+from .alpaca.handlers.dome import (
+    SHUTTER_CLOSED,
+    SHUTTER_CLOSING,
+    SHUTTER_ERROR,
+    SHUTTER_OPEN,
+    SHUTTER_OPENING,
 )
 from .const import (
     CONF_CALIBRATOR_BRIGHTNESS_ENTITY,
     CONF_CALIBRATOR_ONOFF_ENTITY,
+    CONF_DOME_COVER_ENTITY,
     CONF_OBSERVING_CONDITIONS,
     CONF_SWITCH_ENTITIES,
     CONF_SWITCH_NAMES,
@@ -115,6 +126,23 @@ def rebuild_devices(
                 device_name="HA CoverCalibrator",
                 unique_id="int_covercalibrator",
                 handler=handler_cal,
+                is_external=False,
+            )
+        )
+
+    # --- Dome (roll-off roof from a cover entity) ---
+    dome_cover: str = options.get(CONF_DOME_COVER_ENTITY, "")
+    if dome_cover:
+        channel_dome = _build_dome_channel(hass, dome_cover)
+        handler_dome = create_dome_handler(channel_dome, device_name="HA Dome")
+        device_number_dome = registry.allocate_number(DEVICE_TYPE_DOME)
+        registry.add_device(
+            AlpacaDevice(
+                device_type=DEVICE_TYPE_DOME,
+                device_number=device_number_dome,
+                device_name="HA Dome",
+                unique_id="int_dome",
+                handler=handler_dome,
                 is_external=False,
             )
         )
@@ -426,4 +454,74 @@ def _build_calibrator_channel(
         get_is_on=_get_is_on,
         turn_on=_turn_on,
         turn_off=_turn_off,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Dome channel factory
+# ---------------------------------------------------------------------------
+
+
+def _cover_shutter_status(state: Any) -> int:
+    """ASCOM ShutterStatus of a Home Assistant cover state.
+
+    The position decides, not the HA state text: HA reports a cover that
+    stands halfway as "open", but for an observatory a roof that is neither
+    on its open nor on its closed limit is not safe to call open or closed
+    (ShutterStatus "error"). A cover without a position only knows
+    open / closed.
+    """
+    if state is None or state.state in ("unavailable", "unknown"):
+        return SHUTTER_ERROR
+    if state.state == "opening":
+        return SHUTTER_OPENING
+    if state.state == "closing":
+        return SHUTTER_CLOSING
+
+    position = state.attributes.get("current_position")
+    if position is not None:
+        try:
+            position = float(position)
+        except (ValueError, TypeError):
+            return SHUTTER_ERROR
+        if position >= 100:
+            return SHUTTER_OPEN
+        if position <= 0:
+            return SHUTTER_CLOSED
+        return SHUTTER_ERROR
+
+    if state.state == "open":
+        return SHUTTER_OPEN
+    if state.state == "closed":
+        return SHUTTER_CLOSED
+    return SHUTTER_ERROR
+
+
+def _build_dome_channel(hass: HomeAssistant, cover_entity: str) -> DomeChannel:
+    """Create a DomeChannel (shutter only) from a Home Assistant cover entity."""
+
+    async def _get_shutter_status() -> int:
+        return _cover_shutter_status(hass.states.get(cover_entity))
+
+    async def _call(service: str) -> None:
+        await hass.services.async_call(
+            "cover", service, {"entity_id": cover_entity}
+        )
+
+    async def _open_shutter() -> None:
+        await _call("open_cover")
+
+    async def _close_shutter() -> None:
+        await _call("close_cover")
+
+    async def _stop() -> None:
+        await _call("stop_cover")
+
+    return DomeChannel(
+        name=cover_entity,
+        description=f"HA Dome (shutter: {cover_entity})",
+        get_shutter_status=_get_shutter_status,
+        open_shutter=_open_shutter,
+        close_shutter=_close_shutter,
+        stop=_stop,
     )

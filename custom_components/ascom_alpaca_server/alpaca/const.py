@@ -7,6 +7,7 @@ DEVICE_TYPE_SWITCH = "switch"
 DEVICE_TYPE_SAFETYMONITOR = "safetymonitor"
 DEVICE_TYPE_OBSERVINGCONDITIONS = "observingconditions"
 DEVICE_TYPE_COVERCALIBRATOR = "covercalibrator"
+DEVICE_TYPE_DOME = "dome"
 
 # --- ObservingConditions property names ---
 # Maps Alpaca property names (lowercase) to human-readable labels.
@@ -29,7 +30,7 @@ OC_PROPERTIES: dict[str, str] = {
 # --- Server Info ---
 SERVER_NAME = "ASCOM Alpaca Server"
 SERVER_MANUFACTURER = "ASCOM Alpaca Server"
-SERVER_VERSION = "0.9.0"
+SERVER_VERSION = "0.10.0"
 
 # --- Networking ---
 ALPACA_DISCOVERY_PORT = 32227

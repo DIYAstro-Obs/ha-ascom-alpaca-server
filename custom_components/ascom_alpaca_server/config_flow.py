@@ -18,6 +18,7 @@ from .const import (
     CONF_ALPACA_PORT,
     CONF_CALIBRATOR_BRIGHTNESS_ENTITY,
     CONF_CALIBRATOR_ONOFF_ENTITY,
+    CONF_DOME_COVER_ENTITY,
     CONF_OBSERVING_CONDITIONS,
     CONF_SWITCH_ENTITIES,
     CONF_SWITCH_NAMES,
@@ -102,6 +103,8 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
                 return await self.async_step_map_switches()
             if choice == "map_calibrator":
                 return await self.async_step_map_calibrator()
+            if choice == "map_dome":
+                return await self.async_step_map_dome()
             if choice == "map_observing":
                 return await self.async_step_map_observing()
 
@@ -133,6 +136,9 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
         else:
             cal_summary = "not configured"
 
+        dome_cover = self._config_entry.options.get(CONF_DOME_COVER_ENTITY, "")
+        dome_summary = f"✅ {dome_cover}" if dome_cover else "not configured"
+
         menu_options = {
             "general_settings": "⚙️ General settings (Port, Discovery)",
             "map_switches": f"🔌 Map Switch devices ({switch_count} mapped)",
@@ -140,6 +146,7 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
                 f"💡 Map CoverCalibrator (Flat Panel) "
                 f"({cal_summary})"
             ),
+            "map_dome": f"🏠 Map Dome (roll-off roof) ({dome_summary})",
             "map_observing": f"🌡️ Map ObservingConditions sensors ({oc_count} mapped)",
         }
 
@@ -337,6 +344,39 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
                         selector.EntitySelectorConfig(
                             domain=["light", "number", "input_number"],
                         )
+                    ),
+                }
+            ),
+        )
+
+    # ---- Map Dome ----
+
+    async def async_step_map_dome(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Select the cover entity of the roll-off roof (Alpaca Dome)."""
+        if user_input is not None:
+            options = dict(self._config_entry.options)
+            options[CONF_DOME_COVER_ENTITY] = user_input.get(
+                CONF_DOME_COVER_ENTITY, ""
+            )
+            return self.async_create_entry(title="", data=options)
+
+        current = self._config_entry.options.get(CONF_DOME_COVER_ENTITY, "")
+
+        # Only set a default when there is a stored entity (an empty field removes the Dome)
+        cover_kwargs: dict[str, Any] = {}
+        if current:
+            cover_kwargs["default"] = current
+
+        return self.async_show_form(
+            step_id="map_dome",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_DOME_COVER_ENTITY, **cover_kwargs
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="cover"),
                     ),
                 }
             ),

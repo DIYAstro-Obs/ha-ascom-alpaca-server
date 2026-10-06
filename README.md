@@ -18,6 +18,7 @@
   - **Switch**: Map multiple HA `switch` entities to an Alpaca Switch device.
   - **ObservingConditions**: Map HA `sensor` entities to astronomical metrics (Temperature, Humidity, Pressure, Wind, etc.). Supports **Multi-Entity Fallback**: assign multiple sensors to one metric; the first available/valid sensor will be used. Values are converted to ASCOM units (°C, hPa, m/s, mm/h) based on each entity's `unit_of_measurement`.
   - **CoverCalibrator**: Map HA `light`, `switch`, or `number` entities to control a flat panel/calibrator. Supports flexible on/off and brightness control mapping. With a `number` entity, `MaxBrightness` is taken from the entity's `max` attribute; lights and switches use 0–255.
+  - **Dome** (roll-off roof): Map one HA `cover` entity to an Alpaca Dome that only has a shutter (`OpenShutter`, `CloseShutter`, `AbortSlew`, `ShutterStatus`; no azimuth, altitude, slaving or park). ASCOM has no "observatory" device type: a roll-off roof is a Dome. See "Dome (roll-off roof)" below.
 - **Standalone Alpaca Logic**: The core Alpaca protocol implementation is separated from the Home Assistant bridge, making it robust and modular.
 
 ## Installation
@@ -32,6 +33,25 @@ The integration is configured entirely through the Home Assistant UI. Use the **
 - Set the Alpaca Listen Port (default 5555).
 - Enable/Disable UDP Discovery.
 - Map HA entities to Alpaca device types.
+
+## Dome (roll-off roof)
+
+In the options menu choose **Map Dome (roll-off roof)** and select the `cover` entity of the roof, for example the `Observatory Roof` cover of an [ESPHome RoRo controller](https://github.com/DIYAstro-Obs/esphome-roro). Astronomy software then sees a Dome with a shutter. `OpenShutter`, `CloseShutter` and `AbortSlew` call `cover.open_cover`, `cover.close_cover` and `cover.stop_cover` and return at once; the client polls `ShutterStatus` until the roof stands.
+
+`ShutterStatus` follows the cover:
+
+| Cover | ShutterStatus |
+|-------|---------------|
+| `opening` / `closing` | 2 Opening / 3 Closing |
+| position 100 % | 0 Open |
+| position 0 % | 1 Closed |
+| standing halfway (idle, position between 0 and 100) | 4 Error |
+| `unavailable`, `unknown`, entity missing | 4 Error |
+| cover without a position: `open` / `closed` | 0 Open / 1 Closed |
+
+The position decides, not the state text: Home Assistant reports a cover that stands halfway as `open`, but a roof that is neither on its open nor on its closed limit must not be reported as open. The Dome has no park (`CanPark` is false) and is not slaved to a mount.
+
+A command that the cover refuses (for example a locked E-STOP) is not an Alpaca error, the shutter status simply stays as it is. For safety decisions use a SafetyMonitor ([ASCOM Alpaca Safety](https://github.com/DIYAstro-Obs/ha-ascom-alpaca-safety)) as well.
 
 ## For Integration Developers
 

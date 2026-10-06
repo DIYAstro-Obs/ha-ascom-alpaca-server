@@ -46,6 +46,13 @@
                     "calibrator_brightness_entity": "Brightness Entity (light or number, optional)"
                 }
             },
+            "map_dome": {
+                "title": "Map Dome (Roll-off Roof)",
+                "description": "Expose a Home Assistant cover entity as an Alpaca Dome with a shutter. Open, close and stop use the cover services. The shutter status is Open or Closed only when the cover reports the position 100 % or 0 %, Opening or Closing while it moves and Error when it stands halfway or is unavailable. Leave the field empty to remove the Dome.",
+                "data": {
+                    "dome_cover_entity": "Cover entity (roof)"
+                }
+            },
             "map_observing": {
                 "title": "Map ObservingConditions Sensors",
                 "description": "Assign Home Assistant sensor entities to Alpaca ObservingConditions properties. You can select multiple sensors per property — if the primary sensor is unavailable, the next one is used as fallback. Leave empty for properties you don't need.",

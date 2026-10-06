@@ -23,6 +23,7 @@ CONF_SWITCH_NAMES = "switch_names"
 CONF_OBSERVING_CONDITIONS = "observing_conditions"
 CONF_CALIBRATOR_ONOFF_ENTITY = "calibrator_onoff_entity"
 CONF_CALIBRATOR_BRIGHTNESS_ENTITY = "calibrator_brightness_entity"
+CONF_DOME_COVER_ENTITY = "dome_cover_entity"
 
 # --- Data Keys ---
 DATA_REGISTRY = "registry"

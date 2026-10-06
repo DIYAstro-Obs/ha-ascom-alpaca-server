@@ -51,6 +51,25 @@ class OCSensorChannel:
 
 
 @dataclass
+class DomeChannel:
+    """Abstract shutter channel for the Alpaca Dome handler.
+
+    Provides platform-agnostic access to the shutter (roll-off roof) of a dome.
+    ``get_shutter_status`` returns the ASCOM ShutterStatus value (0 open,
+    1 closed, 2 opening, 3 closing, 4 error). The callbacks are injected by
+    the host application (e.g. Home Assistant); the commands return at once,
+    the client polls the status until the roof stands.
+    """
+
+    name: str
+    description: str
+    get_shutter_status: Callable[[], Awaitable[int]]
+    open_shutter: Callable[[], Awaitable[None]]
+    close_shutter: Callable[[], Awaitable[None]]
+    stop: Callable[[], Awaitable[None]]
+
+
+@dataclass
 class CalibratorChannel:
     """Abstract calibrator channel for the Alpaca CoverCalibrator handler.
 
