@@ -60,7 +60,7 @@ COMMAND_ACTIONS = frozenset(
 # --- Server Info ---
 SERVER_NAME = "ASCOM Alpaca Server"
 SERVER_MANUFACTURER = "ASCOM Alpaca Server"
-SERVER_VERSION = "0.10.0"
+SERVER_VERSION = "0.11.0"
 
 # --- Networking ---
 ALPACA_DISCOVERY_PORT = 32227

@@ -10,6 +10,8 @@
 >
 > The project is **under active development**: breaking changes are possible and even likely. Options, entity names and IDs, and the interface between the integrations may change from one version to the next, and you may have to set things up again. Testing is very welcome! Please report any bugs by opening an [issue](https://github.com/DIYAstro-Obs/ha-ascom-alpaca-server/issues). Contributions are also highly appreciated.
 
+This project is not affiliated with or endorsed by the ASCOM Initiative.
+
 ## Features
 
 - **ASCOM Alpaca Server**: Implements the Alpaca protocol to expose HA entities via network.
@@ -23,9 +25,20 @@
 
 ## Installation
 
-1. Copy the `custom_components/ascom_alpaca_server` folder to your Home Assistant `custom_components` directory.
+### Via HACS (recommended)
+
+1. Make sure [HACS](https://hacs.xyz/) is installed.
+2. Open **HACS**, click the three dots in the top right corner and select **Custom repositories**.
+3. Paste `https://github.com/DIYAstro-Obs/ha-ascom-alpaca-server`, select **Integration** as the category and click **Add**.
+4. Find **ASCOM Alpaca Server** in the list and click **Download**.
+5. Restart Home Assistant.
+
+### Manual installation
+
+1. Copy the `custom_components/ascom_alpaca_server` folder to the `custom_components` directory of your Home Assistant.
 2. Restart Home Assistant.
-3. Go to **Settings -> Devices & Services -> Add Integration** and search for **ASCOM Alpaca Server**.
+
+Then go to **Settings -> Devices & Services -> Add Integration** and search for **ASCOM Alpaca Server**.
 
 ## Configuration
 
