@@ -34,6 +34,8 @@ The integration is configured entirely through the Home Assistant UI. Use the **
 - Enable/Disable UDP Discovery.
 - Map HA entities to Alpaca device types. A new mapping applies at once, without restarting the server: connected clients stay connected. Only a changed port or discovery setting restarts the Alpaca server (clients have to connect again).
 
+The user interface is English only; the project does not provide translations.
+
 ## Dome (roll-off roof)
 
 In the options menu choose **Map Dome (roll-off roof)** and select the `cover` entity of the roof, for example the `Observatory Roof` cover of an [ESPHome RoRo controller](https://github.com/DIYAstro-Obs/esphome-roro). Astronomy software then sees a Dome with a shutter. `OpenShutter`, `CloseShutter` and `AbortSlew` call `cover.open_cover`, `cover.close_cover` and `cover.stop_cover` and return at once; the client polls `ShutterStatus` until the roof stands.
