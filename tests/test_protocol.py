@@ -105,7 +105,7 @@ def alpaca(monkeypatch):
     def send(*args, **kwargs):
         return asyncio.run(server._handle_device_request(FakeRequest(*args, **kwargs)))
 
-    return types.SimpleNamespace(register=register, send=send)
+    return types.SimpleNamespace(register=register, send=send, registry=registry, server=server)
 
 
 def test_a_result_without_an_error_is_http_200(alpaca):
@@ -249,3 +249,16 @@ def test_a_command_the_device_could_not_do_is_an_ascom_exception_not_a_crash(alp
 def test_a_crash_of_the_handler_is_still_http_500_and_not_an_ascom_exception(alpaca):
     alpaca.register(error=ValueError("bug"), device_type="dome")
     assert alpaca.send("/api/v1/dome/0/shutterstatus").status == 500
+
+
+def test_the_configured_devices_list_the_guid_of_each_device(alpaca):
+    import uuid
+
+    alpaca.register({"Value": True})
+    request = FakeRequest("/management/v1/configureddevices")
+    response = asyncio.run(alpaca.server._mgmt_configured_devices(request))
+
+    [device] = response.json["Value"]
+    assert device["DeviceType"] == "SafetyMonitor"
+    assert device["UniqueID"] == alpaca.registry.get_device("safetymonitor", 0).unique_id
+    uuid.UUID(device["UniqueID"])

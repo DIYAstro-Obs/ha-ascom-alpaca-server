@@ -53,6 +53,15 @@ The position decides, not the state text: Home Assistant reports a cover that st
 
 A command that the cover accepts but does not carry out (for example a locked E-STOP in the firmware) is not an Alpaca error, the shutter status simply stays as it is. If Home Assistant itself refuses the command, the client gets an error with the reason. For safety decisions use a SafetyMonitor ([ASCOM Alpaca Safety](https://github.com/DIYAstro-Obs/ha-ascom-alpaca-safety)) as well.
 
+## Security
+
+The Alpaca protocol has **no login**. Everyone who can reach the port of the server (default 5555) can read and use every mapped device: switch the switches, move the roof, turn the flat panel on. Therefore:
+
+- Run the server only in a network you trust and never forward its port to the internet.
+- Use a firewall or a separate VLAN if other devices or guests share the network.
+- Commands need PUT (see below), which stops a link or a web page in a browser of the network from triggering them. It is **not** a protection against a computer in the network that sends PUT requests on purpose.
+- The roof has its own protection in its firmware and in the safety monitor: do not rely on the Alpaca server alone to keep it closed.
+
 ## Behaviour of the Alpaca API
 
 - **Commands need PUT.** `OpenShutter`, `CloseShutter`, `AbortSlew`, `SetSwitch`, `SetSwitchValue`, `CalibratorOn`, `CalibratorOff` and the other commands that change something are refused with HTTP 400 when they come as GET or POST. Astronomy software uses PUT; a link or a form on a web page opened in the browser of a computer in your network cannot trigger them. Opening such an address in the browser address bar no longer moves the roof.
@@ -80,6 +89,7 @@ The `handler` is an `async` function `(action: str, params: dict) -> dict`. It r
 What the server does for every device, so that a handler does not have to:
 
 - **`Connected`** is kept per client (`ClientID`) by the server and never reaches the handler. A GET tells whether the client of the request has connected, a PUT connects or disconnects it, so a second client that disconnects does not disconnect the first one. Requests without a `ClientID` count as client 0. The server does not refuse other requests of a client that has not connected.
+- **UniqueID**: every device has a GUID that depends only on the server and on the device (type and name for a registered device), not on its device number. The same device keeps its ID after every restart, and two Home Assistant servers do not share IDs. Clients keep the ID in their profiles.
 - **Registering again**: a device that registers under the same type and name as an earlier one replaces it and keeps its number.
 - **HTTP status**: a request that was understood gets **200**; an exception of the device (not implemented, invalid value, ...) is the `ErrorNumber` in the JSON body, which the client raises as the matching ASCOM exception. A handler that did not understand the request (unknown action, missing or malformed parameter) returns `"HttpStatus": 400`: the server answers 400 with the `ErrorMessage` as plain text. An exception in the handler is answered with 500 and a text. A request for a device that does not exist is 400.
 

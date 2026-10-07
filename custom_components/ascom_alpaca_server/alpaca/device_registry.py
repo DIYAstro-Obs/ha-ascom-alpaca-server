@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any, Awaitable, Callable
 
 from .models import ActionHandler, AlpacaDevice
 
 _LOGGER = logging.getLogger(__name__)
+
+_ID_NAMESPACE = uuid.uuid5(
+    uuid.NAMESPACE_URL, "https://github.com/DIYAstro-Obs/ha-ascom-alpaca-server"
+)
 
 
 class AlpacaDeviceRegistry:
@@ -17,8 +22,13 @@ class AlpacaDeviceRegistry:
     allocation without any Home Assistant dependency.
     """
 
-    def __init__(self) -> None:
-        """Initialize the device registry."""
+    def __init__(self, server_id: str = "") -> None:
+        """Initialize the device registry.
+
+        ``server_id`` tells this server from another one (for Home Assistant: its instance id), so that
+        the UniqueIDs of the devices are unique across servers.
+        """
+        self.server_id = server_id
         self._devices: list[AlpacaDevice] = []
         self._next_numbers: dict[str, int] = {}
         # Track freed device numbers for reuse
@@ -27,6 +37,14 @@ class AlpacaDeviceRegistry:
         self._name_number_map: dict[str, int] = {}
 
     # --- Public API ---
+
+    def unique_id_for(self, key: str) -> str:
+        """The UniqueID (a GUID) of the device that is identified by ``key``.
+
+        The ID depends on the server and the key only: the same device has the same ID after every
+        restart, whatever its device number is (clients keep the ID in their profiles).
+        """
+        return str(uuid.uuid5(_ID_NAMESPACE, f"{self.server_id}/{key}"))
 
     def get_all_devices(self) -> list[AlpacaDevice]:
         """Return all registered devices."""
@@ -111,7 +129,7 @@ class AlpacaDeviceRegistry:
             device_number = self.allocate_number(dt_lower)
             self._name_number_map[stable_key] = device_number
 
-        unique_id = f"ext_{dt_lower}_{device_number}"
+        unique_id = self.unique_id_for(f"external:{stable_key}")
 
         device = AlpacaDevice(
             device_type=dt_lower,

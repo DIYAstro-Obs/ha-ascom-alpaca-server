@@ -88,7 +88,7 @@ def rebuild_devices(
                 device_type=DEVICE_TYPE_SWITCH,
                 device_number=device_number,
                 device_name="HA Switches",
-                unique_id="int_switch_container",
+                unique_id=registry.unique_id_for(f"internal:{DEVICE_TYPE_SWITCH}"),
                 handler=handler,
                 is_external=False,
             )
@@ -109,7 +109,9 @@ def rebuild_devices(
                 device_type=DEVICE_TYPE_OBSERVINGCONDITIONS,
                 device_number=device_number_oc,
                 device_name="HA ObservingConditions",
-                unique_id="int_observingconditions",
+                unique_id=registry.unique_id_for(
+                    f"internal:{DEVICE_TYPE_OBSERVINGCONDITIONS}"
+                ),
                 handler=handler_oc,
                 is_external=False,
             )
@@ -133,7 +135,9 @@ def rebuild_devices(
                 device_type=DEVICE_TYPE_COVERCALIBRATOR,
                 device_number=device_number_cal,
                 device_name="HA CoverCalibrator",
-                unique_id="int_covercalibrator",
+                unique_id=registry.unique_id_for(
+                    f"internal:{DEVICE_TYPE_COVERCALIBRATOR}"
+                ),
                 handler=handler_cal,
                 is_external=False,
             )
@@ -150,7 +154,7 @@ def rebuild_devices(
                 device_type=DEVICE_TYPE_DOME,
                 device_number=device_number_dome,
                 device_name="HA Dome",
-                unique_id="int_dome",
+                unique_id=registry.unique_id_for(f"internal:{DEVICE_TYPE_DOME}"),
                 handler=handler_dome,
                 is_external=False,
             )

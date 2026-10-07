@@ -8,6 +8,7 @@ from typing import Any, Awaitable, Callable
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import instance_id
 
 from .alpaca import AlpacaDeviceRegistry, AlpacaServer
 from .const import (
@@ -35,7 +36,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # otherwise create a new one. This keeps external devices registered.
     registry = hass.data[ALPACA_SERVER_API_KEY].get("registry")
     if registry is None:
-        registry = AlpacaDeviceRegistry()
+        # the instance id keeps the UniqueIDs of the devices unique across Home Assistant servers
+        registry = AlpacaDeviceRegistry(await instance_id.async_get(hass))
         hass.data[ALPACA_SERVER_API_KEY]["registry"] = registry
 
     # Build internal devices via the HA bridge

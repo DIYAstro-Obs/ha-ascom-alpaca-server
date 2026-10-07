@@ -84,6 +84,12 @@ def install() -> None:
     ha = _mod("homeassistant")
     _mod("homeassistant.config_entries", ConfigEntry=object)
     _mod("homeassistant.core", HomeAssistant=object)
+
+    async def async_get_instance_id(hass):
+        return "test-instance"
+
+    helpers = _mod("homeassistant.helpers")
+    helpers.instance_id = _mod("homeassistant.helpers.instance_id", async_get=async_get_instance_id)
     _mod(
         "homeassistant.exceptions",
         HomeAssistantError=HomeAssistantError,

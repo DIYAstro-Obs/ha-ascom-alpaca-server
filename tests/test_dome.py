@@ -173,6 +173,6 @@ def test_the_dome_exists_only_with_a_cover_entity():
     registry = devices({"dome_cover_entity": COVER})
     [device] = registry.get_all_devices()
     assert (device.device_type, device.device_number, device.device_name) == ("dome", 0, "HA Dome")
-    assert device.unique_id == "int_dome"
+    assert device.unique_id == registry.unique_id_for("internal:dome")
     assert device.is_external is False
     assert registry.get_device("dome", 0) is device
