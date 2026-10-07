@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..models import ActionHandler, DomeChannel
-from ._common import common_device_info
+from ._common import bad_request, common_device_info
 
 # ShutterStatus enum values (ASCOM spec)
 SHUTTER_OPEN = 0
@@ -76,45 +76,13 @@ def create_dome_handler(
         An async action handler suitable for ``AlpacaDevice.handler``.
     """
 
-    device_state = {"is_connected": False}
-
     async def handle_dome(
         action: str, params: dict[str, Any]
     ) -> dict[str, Any]:
         """Handle Alpaca Dome requests."""
         action_lower = action.lower()
 
-        # --- Common device properties ---
-
-        if action_lower == "connected":
-            # Handle PUT/POST to connected=True/False
-            put_key = next(
-                (k for k in (params or {}) if k.lower() == "connected"), None
-            )
-            if put_key is not None:
-                # Strict case matching for the Alpaca Compliance Tool
-                if put_key != "Connected":
-                    return {
-                        "Value": False,
-                        "ErrorNumber": 0x400,
-                        "ErrorMessage": "Parameter 'Connected' missing or bad casing",
-                    }
-                v = params["Connected"]
-                if isinstance(v, str):
-                    v_lower = v.lower()
-                    if v_lower == "true":
-                        device_state["is_connected"] = True
-                    elif v_lower == "false":
-                        device_state["is_connected"] = False
-                    else:
-                        return {
-                            "Value": False,
-                            "ErrorNumber": 0x400,
-                            "ErrorMessage": f"Invalid boolean value: {v}",
-                        }
-                else:
-                    device_state["is_connected"] = bool(v)
-            return {"Value": device_state["is_connected"]}
+        # --- Common device properties (Connected is handled by the server) ---
 
         if action_lower == "name":
             return {"Value": device_name}
@@ -163,10 +131,6 @@ def create_dome_handler(
         if action_lower in _NOT_IMPLEMENTED:
             return _not_implemented(action)
 
-        return {
-            "Value": None,
-            "ErrorNumber": 0x400,
-            "ErrorMessage": f"Action '{action}' not supported for Dome",
-        }
+        return bad_request(f"Action '{action}' not supported for Dome")
 
     return handle_dome

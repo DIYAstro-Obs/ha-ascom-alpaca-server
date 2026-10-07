@@ -67,7 +67,12 @@ if api is not None and "async_register_device" in api:
     )
 ```
 
-The `handler` is an `async` function `(action: str, params: dict) -> dict`. It returns a dict with the Alpaca `Value` and, in case of an error, `ErrorNumber`, `ErrorMessage` and optionally `HttpStatus`. The returned `unregister()` callback removes the device again.
+The `handler` is an `async` function `(action: str, params: dict) -> dict`. It returns a dict with the Alpaca `Value` and, in case of an error, `ErrorNumber` and `ErrorMessage`. The returned `unregister()` callback removes the device again.
+
+What the server does for every device, so that a handler does not have to:
+
+- **`Connected`** is kept per client (`ClientID`) by the server and never reaches the handler. A GET tells whether the client of the request has connected, a PUT connects or disconnects it, so a second client that disconnects does not disconnect the first one. Requests without a `ClientID` count as client 0. The server does not refuse other requests of a client that has not connected.
+- **HTTP status**: a request that was understood gets **200**; an exception of the device (not implemented, invalid value, ...) is the `ErrorNumber` in the JSON body, which the client raises as the matching ASCOM exception. A handler that did not understand the request (unknown action, missing or malformed parameter) returns `"HttpStatus": 400`: the server answers 400 with the `ErrorMessage` as plain text. An exception in the handler is answered with 500 and a text. A request for a device that does not exist is 400.
 
 [ASCOM Alpaca Safety](https://github.com/DIYAstro-Obs/ha-ascom-alpaca-safety) uses this API to expose its `SafetyMonitor`.
 

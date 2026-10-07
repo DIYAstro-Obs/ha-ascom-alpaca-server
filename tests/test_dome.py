@@ -148,18 +148,8 @@ def test_device_information():
     assert call(handler, "driverversion")["Value"]
 
 
-def test_connected_is_set_by_put():
-    handler = handler_for(FakeHass())
-    assert call(handler, "connected")["Value"] is False
-    assert call(handler, "connected", {"Connected": "true"})["Value"] is True
-    assert call(handler, "connected")["Value"] is True
-    assert call(handler, "connected", {"Connected": "False"})["Value"] is False
-
-
-@pytest.mark.parametrize("params", [{"connected": "true"}, {"Connected": "maybe"}])
-def test_connected_with_a_bad_parameter_is_an_error(params):
-    result = call(handler_for(FakeHass()), "connected", params)
-    assert result["ErrorNumber"] == 0x400
+def test_an_unknown_action_is_a_bad_request():
+    assert call(handler_for(FakeHass()), "nonsense")["HttpStatus"] == 400
 
 
 def test_other_device_types_keep_interface_version_1():

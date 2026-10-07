@@ -15,6 +15,7 @@ from aiohttp import web
 
 from .const import ALPACA_DISCOVERY_PORT, SERVER_MANUFACTURER, SERVER_NAME, SERVER_VERSION
 from .device_registry import AlpacaDeviceRegistry
+from .handlers._common import handle_connected
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -157,35 +158,27 @@ class AlpacaServer:
                 pass
 
         if device_type != device_type.lower():
-            return self._error_response(
-                params, 0x400, "Device type must be lowercase", status=400
-            )
+            return self._error_response("Device type must be lowercase")
 
         try:
             device_number = int(request.match_info.get("device_number", "0"))
         except ValueError:
-            return self._error_response(
-                params, 0x400, "Invalid device number", status=400
-            )
-
-        # Collect parameters from query string and/or POST body
-        params = dict(request.query)
-        if request.method in ("PUT", "POST"):
-            try:
-                post_data = await request.post()
-                params.update(post_data)
-            except Exception:
-                pass
+            return self._error_response("Invalid device number")
 
         # Look up device
         device = self.registry.get_device(device_type, device_number)
         if device is None:
             return self._error_response(
-                params,
-                0x400,
-                f"Device {device_type}/{device_number} not found",
-                status=400
+                f"Device {device_type}/{device_number} not found"
             )
+
+        if action.lower() == "connected":
+            # Kept per client by the server, the same for every device type
+            client_id = self._get_client_params(params)["ClientID"]
+            result = handle_connected(
+                device.connected_clients, request.method, params, client_id
+            )
+            return self._result_response(result, params)
 
         # Call the device handler
         try:
@@ -194,29 +187,29 @@ class AlpacaServer:
             _LOGGER.exception(
                 "Error handling %s/%d/%s", device_type, device_number, action
             )
-            return self._error_response(
-                params, 0x500, f"Handler error: {exc}", status=500
-            )
+            return self._error_response(f"Handler error: {exc}", status=500)
 
-        # Build response
-        value = result.get("Value")
-        error_number = result.get("ErrorNumber", 0)
+        return self._result_response(result, params)
+
+    def _result_response(
+        self, result: dict[str, Any], params: dict[str, Any]
+    ) -> web.Response:
+        """Build the HTTP response from the result of a device handler.
+
+        HTTP 200 means the request was understood and the ASCOM method ran: an exception of the
+        device (not implemented, invalid value, ...) comes as ``ErrorNumber`` in the JSON body. A handler
+        marks a request it did not understand with ``HttpStatus`` (400, see ``bad_request``): that
+        is answered with the status and the message as plain text.
+        """
+        status = result.get("HttpStatus", 200)
         error_message = result.get("ErrorMessage", "")
-        # If the handler explicitly provided an HTTP status, use it.
-        # Otherwise, if an error was returned, use 400 (Bad Request).
-        status = result.get("HttpStatus")
-        if status is None:
-            if error_number != 0:
-                status = 400
-            else:
-                status = 200
-
+        if status != 200:
+            return self._error_response(error_message, status=status)
         return self._json_response(
-            value,
+            result.get("Value"),
             params,
-            error_number=error_number,
+            error_number=result.get("ErrorNumber", 0),
             error_message=error_message,
-            status=status,
         )
 
     # --- Response Helpers ---
@@ -264,10 +257,9 @@ class AlpacaServer:
         }
         return web.json_response(body, status=status)
 
-    def _error_response(
-        self, params: dict[str, Any], error_number: int, message: str, status: int = 400
-    ) -> web.Response:
-        return self._json_response(None, params, error_number, message, status=status)
+    def _error_response(self, message: str, status: int = 400) -> web.Response:
+        """HTTP 400 (request not understood) or 500 (technical error): the message as plain text."""
+        return web.Response(status=status, text=message, content_type="text/plain")
 
     # --- UDP Discovery ---
 

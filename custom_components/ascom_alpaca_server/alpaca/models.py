@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
 # Type alias for an Alpaca device action handler.
@@ -20,6 +20,8 @@ class AlpacaDevice:
     unique_id: str
     handler: ActionHandler
     is_external: bool = False
+    # ClientIDs that have connected to the device (the server keeps the Connected property, see _common)
+    connected_clients: set[int] = field(default_factory=set)
 
 
 @dataclass

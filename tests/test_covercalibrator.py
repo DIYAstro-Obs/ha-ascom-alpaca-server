@@ -42,12 +42,12 @@ def test_brightness_is_clamped_to_entity_range():
 
 
 @pytest.mark.parametrize("params", [{}, {"Brightness": "abc"}, {"brightness": "50"}])
-def test_missing_or_invalid_brightness_is_an_error_not_full_power(params):
+def test_missing_or_invalid_brightness_is_a_bad_request_not_full_power(params):
     hass = FakeHass()
     hass.states.set("number.panel", "0", {"max": 100})
     handler = handler_for(hass, "", "number.panel")
     result = call(handler, "calibratoron", params)
-    assert result["ErrorNumber"] == 0x401
+    assert result["HttpStatus"] == 400
     assert hass.services.calls == []
 
 

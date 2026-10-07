@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..models import ActionHandler, SwitchChannel
-from ._common import common_device_info
+from ._common import bad_request, common_device_info
 
 
 def create_switch_handler(
@@ -25,10 +25,6 @@ def create_switch_handler(
     Returns:
         An async action handler suitable for ``AlpacaDevice.handler``.
     """
-
-    device_state = {
-        "is_connected": False,
-    }
 
     def _get_param(params: dict[str, Any], name: str) -> Any:
         name_lower = name.lower()
@@ -54,6 +50,11 @@ def create_switch_handler(
         params: dict[str, Any], default_value: Any = None
     ) -> dict[str, Any]:
         """Build an error response for an invalid switch Id."""
+        try:
+            int(_get_param(params, "id"))
+        except (ValueError, TypeError):
+            return bad_request("Parameter 'Id' missing or not an integer")
+        # an integer, but there is no such switch: an ASCOM InvalidValue exception
         return {
             "Value": default_value,
             "ErrorNumber": 0x401,
@@ -66,30 +67,7 @@ def create_switch_handler(
         """Handle Alpaca switch requests."""
         action_lower = action.lower()
 
-        # --- Common device properties ---
-
-        if action_lower == "connected":
-            # Handle PUT/POST to connected=True/False
-            val = _get_param(params, "connected")
-            if val is not None:
-                if isinstance(val, str):
-                    v_lower = val.lower()
-                    if v_lower not in ("true", "false"):
-                        return {
-                            "Value": False,
-                            "ErrorNumber": 0x400,
-                            "ErrorMessage": f"Invalid boolean value: {val}",
-                        }
-                    device_state["is_connected"] = (v_lower == "true")
-                elif isinstance(val, bool):
-                    device_state["is_connected"] = val
-                else:
-                    return {
-                        "Value": False,
-                        "ErrorNumber": 0x400,
-                        "ErrorMessage": f"Invalid parameter type for Connected: {type(val)}",
-                    }
-            return {"Value": device_state["is_connected"]}
+        # --- Common device properties (Connected is handled by the server) ---
 
         if action_lower == "name":
             return {"Value": device_name}
@@ -171,26 +149,16 @@ def create_switch_handler(
             
             target_state = _get_param(params, "state")
             if target_state is None:
-                return {
-                    "Value": None,
-                    "ErrorNumber": 0x400,
-                    "ErrorMessage": "Parameter 'State' missing",
-                }
+                return bad_request("Parameter 'State' missing")
             if isinstance(target_state, str):
                 v_lower = target_state.lower()
                 if v_lower not in ("true", "false"):
-                    return {
-                        "Value": None,
-                        "ErrorNumber": 0x400,
-                        "ErrorMessage": f"Invalid boolean value: {target_state}",
-                    }
+                    return bad_request(f"Invalid boolean value: {target_state}")
                 target_state = v_lower == "true"
             elif not isinstance(target_state, bool):
-                return {
-                    "Value": None,
-                    "ErrorNumber": 0x400,
-                    "ErrorMessage": f"Invalid parameter type for State: {type(target_state)}",
-                }
+                return bad_request(
+                    f"Invalid parameter type for State: {type(target_state)}"
+                )
             
             await channels[idx].set_state(bool(target_state))
             return {"Value": None}
@@ -202,20 +170,12 @@ def create_switch_handler(
             
             val = _get_param(params, "value")
             if val is None:
-                return {
-                    "Value": None,
-                    "ErrorNumber": 0x400,
-                    "ErrorMessage": "Parameter 'Value' missing",
-                }
-            
+                return bad_request("Parameter 'Value' missing")
+
             try:
                 value = float(val)
             except (ValueError, TypeError):
-                return {
-                    "Value": None,
-                    "ErrorNumber": 0x400,
-                    "ErrorMessage": f"Invalid float value: {val}",
-                }
+                return bad_request(f"Invalid float value: {val}")
             
             await channels[idx].set_state(value > 0)
             return {"Value": None}
@@ -227,11 +187,7 @@ def create_switch_handler(
             
             name = _get_param(params, "name")
             if name is None:
-                return {
-                    "Value": None,
-                    "ErrorNumber": 0x400,
-                    "ErrorMessage": "Parameter 'Name' missing",
-                }
+                return bad_request("Parameter 'Name' missing")
             return {"Value": None}  # read-only names
 
         # --- Standard device info ---
@@ -244,10 +200,6 @@ def create_switch_handler(
         ):
             return common_device_info(action_lower)
 
-        return {
-            "Value": None,
-            "ErrorNumber": 0x400,
-            "ErrorMessage": f"Action '{action}' not supported for Switch",
-        }
+        return bad_request(f"Action '{action}' not supported for Switch")
 
     return handle_switch

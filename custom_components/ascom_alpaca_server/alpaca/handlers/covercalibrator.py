@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..models import ActionHandler, CalibratorChannel
-from ._common import common_device_info
+from ._common import bad_request, common_device_info
 
 # CalibratorStatus enum values (ASCOM spec)
 _CALIBRATOR_NOT_PRESENT = 0
@@ -46,10 +46,7 @@ def create_covercalibrator_handler(
         """Handle Alpaca CoverCalibrator requests."""
         action_lower = action.lower()
 
-        # --- Common device properties ---
-
-        if action_lower == "connected":
-            return {"Value": True}
+        # --- Common device properties (Connected is handled by the server) ---
 
         if action_lower == "name":
             return {"Value": device_name}
@@ -92,11 +89,7 @@ def create_covercalibrator_handler(
             try:
                 brightness = int(params["Brightness"])
             except (KeyError, ValueError, TypeError):
-                return {
-                    "Value": None,
-                    "ErrorNumber": 0x401,
-                    "ErrorMessage": "Parameter 'Brightness' missing or invalid",
-                }
+                return bad_request("Parameter 'Brightness' missing or invalid")
             # Clamp to valid range
             brightness = max(0, min(brightness, channel.get_max_brightness()))
             await channel.turn_on(brightness)
@@ -116,12 +109,6 @@ def create_covercalibrator_handler(
         ):
             return common_device_info(action_lower)
 
-        return {
-            "Value": None,
-            "ErrorNumber": 0x400,
-            "ErrorMessage": (
-                f"Action '{action}' not supported for CoverCalibrator"
-            ),
-        }
+        return bad_request(f"Action '{action}' not supported for CoverCalibrator")
 
     return handle_covercalibrator

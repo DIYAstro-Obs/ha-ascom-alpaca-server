@@ -10,7 +10,7 @@ from typing import Any
 
 from ..const import OC_PROPERTIES
 from ..models import ActionHandler, OCSensorChannel
-from ._common import common_device_info
+from ._common import bad_request, common_device_info
 
 
 def create_oc_handler(
@@ -28,7 +28,6 @@ def create_oc_handler(
     """
 
     device_state = {
-        "is_connected": False,
         "average_period": 0.0,
     }
 
@@ -38,34 +37,7 @@ def create_oc_handler(
         """Handle Alpaca ObservingConditions requests."""
         action_lower = action.lower()
 
-        if action_lower == "connected":
-            # Handle PUT/POST to connected=True/False
-            put_key = next((k for k in (params or {}) if k.lower() == "connected"), None)
-            if put_key is not None:
-                # Strict case matching for Alpaca Compliance Tool
-                if put_key != "Connected":
-                    # Parameter has bad casing
-                    return {
-                        "Value": False,
-                        "ErrorNumber": 0x400,
-                        "ErrorMessage": "Parameter 'Connected' missing or bad casing",
-                    }
-                v = params["Connected"]
-                if isinstance(v, str):
-                    v_lower = v.lower()
-                    if v_lower == "true":
-                        device_state["is_connected"] = True
-                    elif v_lower == "false":
-                        device_state["is_connected"] = False
-                    else:
-                        return {
-                            "Value": False,
-                            "ErrorNumber": 0x400,
-                            "ErrorMessage": f"Invalid boolean value: {v}",
-                        }
-                else:
-                    device_state["is_connected"] = bool(v)
-            return {"Value": device_state["is_connected"]}
+        # Connected is handled by the server
 
         if action_lower == "name":
             return {"Value": device_name}
@@ -84,28 +56,22 @@ def create_oc_handler(
             if put_key is not None:
                 # Strict parameter matching. Alpaca explicitly tests bad casing
                 if put_key != "AveragePeriod":
-                    return {
-                        "Value": 0.0,
-                        "ErrorNumber": 0x400,
-                        "ErrorMessage": "Parameter 'AveragePeriod' missing or bad casing",
-                    }
+                    return bad_request(
+                        "Parameter 'AveragePeriod' missing or bad casing"
+                    )
                 v = params["AveragePeriod"]
                 try:
                     # Note: Conform can pass floats, check them
                     val = float(v)
-                    if val < 0.0:
-                        return {
-                            "Value": 0.0,
-                            "ErrorNumber": 0x401,
-                            "ErrorMessage": f"Invalid average period: {v}",
-                        }
-                    device_state["average_period"] = val
                 except (ValueError, TypeError):
+                    return bad_request(f"Invalid average period: {v}")
+                if val < 0.0:
                     return {
                         "Value": 0.0,
                         "ErrorNumber": 0x401,
                         "ErrorMessage": f"Invalid average period: {v}",
                     }
+                device_state["average_period"] = val
             return {"Value": device_state["average_period"]}
 
         if action_lower == "refresh":
@@ -195,10 +161,6 @@ def create_oc_handler(
         ):
             return common_device_info(action_lower)
 
-        return {
-            "Value": None,
-            "ErrorNumber": 0x400,
-            "ErrorMessage": f"Action '{action}' not supported",
-        }
+        return bad_request(f"Action '{action}' not supported")
 
     return handle_oc
