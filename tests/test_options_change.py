@@ -181,14 +181,24 @@ def test_unloading_keeps_the_api_for_other_integrations_so_that_a_reload_works()
     assert const.ALPACA_SERVER_API_KEY in setup.hass.data
 
 
-def test_removing_the_integration_removes_the_api():
+def test_a_removed_and_added_again_server_keeps_the_registered_devices():
+    """Safety registers when it sets up and when the Server loads for the first time, not when the Server
+    is added again: after "remove the Server, add it again" the registry has to survive, with Safety in it."""
     setup = Setup()
+
+    async def handler(action, params):
+        return {"Value": True}
+
+    setup.registry.register_device("SafetyMonitor", "Safety", handler)
+    registry = setup.registry
+    external = registry.get_device("safetymonitor", 0)
+
     asyncio.run(integration.async_unload_entry(setup.hass, setup.entry))
-    asyncio.run(integration.async_remove_entry(setup.hass, setup.entry))
-    assert const.ALPACA_SERVER_API_KEY not in setup.hass.data
+    # Home Assistant calls async_remove_entry when the integration is deleted, but only if there is one:
+    # nothing may throw the API away
+    assert not hasattr(integration, "async_remove_entry")
+    asyncio.run(integration.async_setup_entry(setup.hass, setup.entry))  # added again
 
-
-def test_removing_twice_is_harmless():
-    setup = Setup()
-    asyncio.run(integration.async_remove_entry(setup.hass, setup.entry))
-    asyncio.run(integration.async_remove_entry(setup.hass, setup.entry))
+    assert setup.registry is registry
+    assert setup.registry.get_device("safetymonitor", 0) is external
+    assert asyncio.run(external.handler("issafe", {})) == {"Value": True}
