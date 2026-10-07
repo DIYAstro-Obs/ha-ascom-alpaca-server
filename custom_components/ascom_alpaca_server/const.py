@@ -28,6 +28,10 @@ CONF_DOME_COVER_ENTITY = "dome_cover_entity"
 # Entities that can be exposed as an Alpaca switch: each has turn_on and turn_off in its own domain
 SWITCH_DOMAINS = ("switch", "input_boolean", "light", "fan")
 
+# Entities that can provide ObservingConditions values: a sensor per value, or a weather entity
+# with several values as attributes
+OC_DOMAINS = ("sensor", "weather")
+
 # --- Data Keys ---
 DATA_REGISTRY = "registry"
 DATA_SERVER = "server"

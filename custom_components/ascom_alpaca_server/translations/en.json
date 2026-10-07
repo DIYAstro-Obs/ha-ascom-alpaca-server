@@ -70,7 +70,7 @@
             },
             "map_observing": {
                 "title": "Map ObservingConditions Sensors",
-                "description": "Assign Home Assistant sensor entities to Alpaca ObservingConditions properties. You can select multiple sensors per property — if the primary sensor is unavailable, the next one is used as fallback. Leave empty for properties you don't need.",
+                "description": "Assign Home Assistant sensor or weather entities to Alpaca ObservingConditions properties. A weather entity provides temperature, dew point, humidity, pressure, wind speed, wind gust, wind direction and cloud cover from its attributes (not the others). You can select several entities per property: if the first one has no value, the next one is used as fallback. Leave empty for properties you don't need.",
                 "data": {
                     "temperature": "Temperature",
                     "humidity": "Humidity",

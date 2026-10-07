@@ -25,6 +25,7 @@ from .const import (
     DEFAULT_ALPACA_DISCOVERY,
     DEFAULT_ALPACA_PORT,
     DOMAIN,
+    OC_DOMAINS,
     SWITCH_DOMAINS,
 )
 from .validation import port_is_free, switch_name_errors
@@ -433,7 +434,7 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(prop_key, **opt_kwargs)
             ] = selector.EntitySelector(
                 selector.EntitySelectorConfig(
-                    domain="sensor",
+                    domain=list(OC_DOMAINS),
                     multiple=True,
                 )
             )

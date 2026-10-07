@@ -144,3 +144,111 @@ def test_the_description_of_a_mapped_sensor():
     hass.states.set("sensor.t", "5")
     result = call(oc_handler(hass, {"temperature": ["sensor.t"]}), "sensordescription", {"SensorName": "Temperature"})
     assert "sensor.t" in result["Value"]
+
+
+# ---- values from a weather entity -------------------------------------------------------------------------------------
+unit_conversion = importlib.import_module("ascom_alpaca_server.unit_conversion")
+
+HOME = {
+    "temperature": 50,
+    "temperature_unit": "°F",
+    "dew_point": 32,
+    "humidity": 80,
+    "pressure": 29.92,
+    "pressure_unit": "inHg",
+    "wind_speed": 36,
+    "wind_gust_speed": 10,
+    "wind_speed_unit": "km/h",
+    "wind_bearing": 225,
+    "cloud_coverage": 40,
+}
+
+
+@pytest.mark.parametrize(
+    "prop, expected",
+    [
+        ("temperature", 10.0),  # 50 °F
+        ("dewpoint", 0.0),  # 32 °F, the unit of the temperature
+        ("humidity", 80.0),
+        ("pressure", 1013.2),  # 29.92 inHg
+        ("windspeed", 10.0),  # 36 km/h
+        ("windgust", 10 / 3.6),
+        ("winddirection", 225.0),
+        ("cloudcover", 40.0),
+    ],
+)
+def test_a_weather_entity_provides_the_values_in_alpaca_units(prop, expected):
+    assert unit_conversion.weather_value(prop, HOME) == pytest.approx(expected, rel=1e-3)
+
+
+@pytest.mark.parametrize("prop", ["rainrate", "skybrightness", "skyquality", "skytemperature", "starfwhm", "nonsense"])
+def test_a_weather_entity_has_no_value_for_the_other_properties(prop):
+    assert unit_conversion.weather_value(prop, HOME) is None
+
+
+@pytest.mark.parametrize(
+    "bearing, degrees",
+    [("N", 0), ("nne", 22.5), ("E", 90), ("SW", 225), ("WNW", 292.5), ("NNW", 337.5), (" s ", 180), ("90", 90.0), (45.5, 45.5)],
+)
+def test_the_wind_direction_may_be_a_compass_point(bearing, degrees):
+    assert unit_conversion.weather_value("winddirection", {"wind_bearing": bearing}) == degrees
+
+
+@pytest.mark.parametrize(
+    "attributes",
+    [{}, {"temperature": None}, {"temperature": "warm"}, {"wind_bearing": "somewhere"}],
+)
+def test_a_weather_entity_without_a_usable_value_has_none(attributes):
+    assert unit_conversion.weather_value("temperature", attributes) is None
+    assert unit_conversion.weather_value("winddirection", attributes) is None
+
+
+def test_without_a_unit_attribute_the_value_is_passed_through():
+    assert unit_conversion.weather_value("temperature", {"temperature": 7}) == 7.0
+
+
+def weather_hass(**attributes):
+    hass = FakeHass()
+    hass.states.set("weather.home", "sunny", attributes or HOME)
+    return hass
+
+
+def test_an_observing_conditions_value_can_come_from_a_weather_entity():
+    hass = weather_hass()
+    assert read(hass, "temperature", ["weather.home"]) == pytest.approx(10.0)
+    assert read(hass, "windspeed", ["weather.home"]) == pytest.approx(10.0)
+    assert read(hass, "winddirection", ["weather.home"]) == 225.0
+
+
+def test_a_property_the_weather_entity_does_not_have_has_no_value():
+    assert read(weather_hass(), "rainrate", ["weather.home"]) is None
+
+
+def test_the_fallback_goes_from_a_sensor_to_a_weather_entity_and_back():
+    hass = weather_hass()
+    hass.states.set("sensor.station", "unavailable", {"unit_of_measurement": "°C"})
+    assert read(hass, "temperature", ["sensor.station", "weather.home"]) == pytest.approx(10.0)
+
+    hass.states.set("sensor.station", "3", {"unit_of_measurement": "°C"})
+    assert read(hass, "temperature", ["sensor.station", "weather.home"]) == 3.0  # the sensor first
+    assert read(hass, "temperature", ["weather.home", "sensor.station"]) == pytest.approx(10.0)
+
+
+def test_a_weather_entity_that_cannot_answer_falls_back_to_the_next_entity():
+    hass = weather_hass()
+    hass.states.set("sensor.rain", "2.5", {"unit_of_measurement": "mm/h"})
+    assert read(hass, "rainrate", ["weather.home", "sensor.rain"]) == 2.5
+
+
+def test_an_unavailable_weather_entity_is_skipped():
+    hass = FakeHass()
+    hass.states.set("weather.home", "unavailable", HOME)
+    assert read(hass, "temperature", ["weather.home"]) is None
+
+
+def test_the_handler_answers_from_a_weather_entity():
+    hass = weather_hass()
+    handler = oc_handler(hass, {"temperature": ["weather.home"], "humidity": ["weather.home"]})
+    assert call(handler, "temperature")["Value"] == pytest.approx(10.0)
+    assert call(handler, "humidity")["Value"] == 80.0
+    assert call(handler, "timesincelastupdate", {"SensorName": "temperature"})["Value"] < 5

@@ -115,6 +115,11 @@ def _listen_settings(entry: ConfigEntry) -> tuple[int, bool]:
     return port, bool(discovery)
 
 
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """The integration is removed (not only reloaded): the API for other integrations goes with it."""
+    hass.data.pop(ALPACA_SERVER_API_KEY, None)
+
+
 async def _async_update_listener(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> None:

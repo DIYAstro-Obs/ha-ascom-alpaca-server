@@ -16,7 +16,7 @@
 - **Discovery**: Supports Alpaca UDP discovery (optional/configurable).
 - **Supported Device Types**:
   - **Switch**: Map multiple HA `switch`, `input_boolean`, `light` or `fan` entities to an Alpaca Switch device. Each switch needs its own, unique name.
-  - **ObservingConditions**: Map HA `sensor` entities to astronomical metrics (Temperature, Humidity, Pressure, Wind, etc.). Supports **Multi-Entity Fallback**: assign multiple sensors to one metric; the first available/valid sensor will be used. Values are converted to ASCOM units (°C, hPa, m/s, mm/h) based on each entity's `unit_of_measurement`.
+  - **ObservingConditions**: Map HA `sensor` and `weather` entities to astronomical metrics (Temperature, Humidity, Pressure, Wind, etc.). Supports **Multi-Entity Fallback**: assign multiple sensors to one metric; the first available/valid sensor will be used. Values are converted to ASCOM units (°C, hPa, m/s, mm/h) based on each entity's `unit_of_measurement`.
   - **CoverCalibrator**: Map HA `light`, `switch`, or `number` entities to control a flat panel/calibrator. Supports flexible on/off and brightness control mapping. With a `number` entity, `MaxBrightness` is taken from the entity's `max` attribute; lights and switches use 0–255.
   - **Dome** (roll-off roof): Map one HA `cover` entity to an Alpaca Dome that only has a shutter (`OpenShutter`, `CloseShutter`, `AbortSlew`, `ShutterStatus`; no azimuth, altitude, slaving or park). ASCOM has no "observatory" device type: a roll-off roof is a Dome. See "Dome (roll-off roof)" below.
 - **Standalone Alpaca Logic**: The core Alpaca protocol implementation is separated from the Home Assistant bridge, making it robust and modular.
@@ -61,6 +61,23 @@ The Alpaca protocol has **no login**. Everyone who can reach the port of the ser
 - Use a firewall or a separate VLAN if other devices or guests share the network.
 - Commands need PUT (see below), which stops a link or a web page in a browser of the network from triggering them. It is **not** a protection against a computer in the network that sends PUT requests on purpose.
 - The roof has its own protection in its firmware and in the safety monitor: do not rely on the Alpaca server alone to keep it closed.
+
+## ObservingConditions from a weather entity
+
+An ObservingConditions property can come from a `sensor` entity (one value per entity, for example a weather station) or from a `weather` entity (for example `weather.home` of Met.no, OpenWeatherMap or the DWD). The state of a weather entity is the weather condition, its values are attributes; the server reads the attribute that belongs to the property and converts it with the unit that the weather entity reports (`temperature_unit`, `pressure_unit`, `wind_speed_unit`):
+
+| ObservingConditions property | Attribute of the weather entity |
+|---|---|
+| Temperature | `temperature` |
+| DewPoint | `dew_point` |
+| Humidity | `humidity` |
+| Pressure | `pressure` |
+| WindSpeed | `wind_speed` |
+| WindGust | `wind_gust_speed` |
+| WindDirection | `wind_bearing` (degrees or a compass point such as `NNE`) |
+| CloudCover | `cloud_coverage` |
+
+A weather entity has nothing for the other properties (RainRate, SkyBrightness, SkyQuality, SkyTemperature, StarFWHM): use sensors there. You can mix both for one property; the first entity that has a value answers, the others are the fallback. The values of an online weather service are a forecast model for your region, not a measurement at the observatory: a local sensor is better where it matters.
 
 ## Behaviour of the Alpaca API
 

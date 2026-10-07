@@ -48,7 +48,7 @@ from .const import (
     CONF_SWITCH_ENTITIES,
     CONF_SWITCH_NAMES,
 )
-from .unit_conversion import to_alpaca_unit
+from .unit_conversion import to_alpaca_unit, weather_value
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -279,6 +279,12 @@ def _build_oc_channels(
                 if state is None or state.state in (
                     "unavailable", "unknown",
                 ):
+                    continue
+                if eid.startswith("weather."):
+                    # the state is the weather condition, the values are attributes
+                    weather = weather_value(prop, state.attributes)
+                    if weather is not None:
+                        return weather
                     continue
                 try:
                     value = float(state.state)
