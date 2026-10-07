@@ -16,7 +16,12 @@ from aiohttp import web
 from .const import ALPACA_DISCOVERY_PORT, SERVER_MANUFACTURER, SERVER_NAME, SERVER_VERSION
 from .const import COMMAND_ACTIONS
 from .device_registry import AlpacaDeviceRegistry
-from .handlers._common import handle_connected
+from .handlers._common import (
+    ERROR_UNSPECIFIED,
+    DeviceError,
+    driver_error,
+    handle_connected,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,8 +71,15 @@ class AlpacaServer:
 
         self._runner = web.AppRunner(self._app)
         await self._runner.setup()
-        self._site = web.TCPSite(self._runner, "0.0.0.0", self.port)
-        await self._site.start()
+        try:
+            self._site = web.TCPSite(self._runner, "0.0.0.0", self.port)
+            await self._site.start()
+        except OSError:
+            # for example the port is in use: do not leave the runner behind
+            await self._runner.cleanup()
+            self._runner = None
+            self._site = None
+            raise
         _LOGGER.info("Alpaca server started on port %d", self.port)
 
         if self.discovery_enabled:
@@ -189,6 +201,8 @@ class AlpacaServer:
         # Call the device handler
         try:
             result = await device.handler(action, params)
+        except DeviceError as err:
+            result = driver_error(ERROR_UNSPECIFIED, str(err))
         except Exception as exc:
             _LOGGER.exception(
                 "Error handling %s/%d/%s", device_type, device_number, action

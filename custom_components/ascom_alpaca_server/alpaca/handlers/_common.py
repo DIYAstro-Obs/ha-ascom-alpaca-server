@@ -13,6 +13,23 @@ ERROR_VALUE_NOT_SET = 0x402  # the property is there, but has no value (now)
 ERROR_UNSPECIFIED = 0x500  # the device does not answer
 
 
+class DeviceError(Exception):
+    """The device could not do what the request asked (a Home Assistant service failed).
+
+    The server answers with an ASCOM exception (HTTP 200, ``ErrorNumber`` 0x500) and the message,
+    not with a technical error: the request was fine, the device did not do it.
+    """
+
+
+def get_param(params: dict[str, Any], name: str) -> Any:
+    """The value of a request parameter, found without regard to the case of its name (None: missing)."""
+    name = name.lower()
+    for key, value in params.items():
+        if key.lower() == name:
+            return value
+    return None
+
+
 def driver_error(number: int, message: str) -> dict[str, Any]:
     """An exception of the device. The server answers HTTP 200 with the number in the body."""
     return {"Value": None, "ErrorNumber": number, "ErrorMessage": message}

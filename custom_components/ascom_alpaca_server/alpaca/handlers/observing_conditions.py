@@ -17,6 +17,7 @@ from ._common import (
     bad_request,
     common_device_info,
     driver_error,
+    get_param,
 )
 
 
@@ -106,12 +107,7 @@ def create_oc_handler(
         # --- Time since last update ---
 
         if action_lower == "timesincelastupdate":
-            # Conform requires case-insensitive parameter matching
-            sensor_name = ""
-            for k, v in params.items():
-                if k.lower() == "sensorname":
-                    sensor_name = str(v).lower()
-                    break
+            sensor_name = str(get_param(params, "sensorname") or "").lower()
 
             if not sensor_name:
                 times = []
@@ -143,11 +139,7 @@ def create_oc_handler(
         # --- Sensor description ---
 
         if action_lower == "sensordescription":
-            sensor_name = ""
-            for k, v in params.items():
-                if k.lower() == "sensorname":
-                    sensor_name = str(v).lower()
-                    break
+            sensor_name = str(get_param(params, "sensorname") or "").lower()
 
             if not sensor_name:
                 return {

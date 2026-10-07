@@ -6,10 +6,12 @@ calls) is wired into the abstract Alpaca handler callbacks.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .alpaca import (
@@ -30,6 +32,7 @@ from .alpaca.handlers import (
     create_oc_handler,
     create_switch_handler,
 )
+from .alpaca.handlers._common import DeviceError
 from .alpaca.handlers.dome import (
     SHUTTER_CLOSED,
     SHUTTER_CLOSING,
@@ -157,6 +160,25 @@ def rebuild_devices(
     )
 
 
+# How long a command waits for its Home Assistant service
+_SERVICE_TIMEOUT = 10
+
+
+async def _call_service(
+    hass: HomeAssistant, domain: str, service: str, data: dict[str, Any]
+) -> None:
+    """Call a service and wait for it: a failure reaches the Alpaca client instead of the log only."""
+    try:
+        async with asyncio.timeout(_SERVICE_TIMEOUT):
+            await hass.services.async_call(domain, service, data, blocking=True)
+    except HomeAssistantError as err:
+        raise DeviceError(f"{domain}.{service} failed: {err}") from err
+    except TimeoutError as err:
+        raise DeviceError(
+            f"{domain}.{service} did not finish within {_SERVICE_TIMEOUT} s"
+        ) from err
+
+
 def _has_no_value(state: Any) -> bool:
     """The entity does not exist or reports no value (unavailable, unknown)."""
     return state is None or state.state in ("unavailable", "unknown")
@@ -190,8 +212,9 @@ def _build_switch_channels(
             target: bool, eid: str = entity_id
         ) -> None:
             service = "turn_on" if target else "turn_off"
-            await hass.services.async_call(
-                "switch", service, {"entity_id": eid}
+            # every domain of SWITCH_DOMAINS has turn_on and turn_off
+            await _call_service(
+                hass, eid.split(".", 1)[0], service, {"entity_id": eid}
             )
 
         # Determine the name to expose via Alpaca
@@ -392,7 +415,8 @@ def _build_calibrator_channel(
     async def _turn_on(brightness: int) -> None:
         # Set brightness first if separate entity
         if brightness_entity and brightness_domain in ("number", "input_number"):
-            await hass.services.async_call(
+            await _call_service(
+                hass,
                 brightness_domain,
                 "set_value",
                 {"entity_id": brightness_entity, "value": brightness},
@@ -400,7 +424,8 @@ def _build_calibrator_channel(
 
         # A separate brightness light always receives the brightness
         if separate_light:
-            await hass.services.async_call(
+            await _call_service(
+                hass,
                 "light",
                 "turn_on",
                 {"entity_id": brightness_entity, "brightness": brightness},
@@ -412,10 +437,10 @@ def _build_calibrator_channel(
             # Only pass brightness if this light itself controls it
             if not brightness_entity or brightness_entity == onoff_entity:
                 service_data["brightness"] = brightness
-            await hass.services.async_call("light", "turn_on", service_data)
+            await _call_service(hass, "light", "turn_on", service_data)
         elif onoff_entity and onoff_domain == "switch":
-            await hass.services.async_call(
-                "switch", "turn_on", {"entity_id": onoff_entity}
+            await _call_service(
+                hass, "switch", "turn_on", {"entity_id": onoff_entity}
             )
         elif not onoff_entity and brightness_domain in (
             "number", "input_number"
@@ -426,22 +451,23 @@ def _build_calibrator_channel(
     # --- turn_off ---
     async def _turn_off() -> None:
         if brightness_entity and brightness_domain in ("number", "input_number"):
-            await hass.services.async_call(
+            await _call_service(
+                hass,
                 brightness_domain,
                 "set_value",
                 {"entity_id": brightness_entity, "value": 0},
             )
         if separate_light:
-            await hass.services.async_call(
-                "light", "turn_off", {"entity_id": brightness_entity}
+            await _call_service(
+                hass, "light", "turn_off", {"entity_id": brightness_entity}
             )
         if onoff_entity and onoff_domain == "light":
-            await hass.services.async_call(
-                "light", "turn_off", {"entity_id": onoff_entity}
+            await _call_service(
+                hass, "light", "turn_off", {"entity_id": onoff_entity}
             )
         elif onoff_entity and onoff_domain == "switch":
-            await hass.services.async_call(
-                "switch", "turn_off", {"entity_id": onoff_entity}
+            await _call_service(
+                hass, "switch", "turn_off", {"entity_id": onoff_entity}
             )
 
     # Build description
@@ -511,9 +537,7 @@ def _build_dome_channel(hass: HomeAssistant, cover_entity: str) -> DomeChannel:
         return _cover_shutter_status(hass.states.get(cover_entity))
 
     async def _call(service: str) -> None:
-        await hass.services.async_call(
-            "cover", service, {"entity_id": cover_entity}
-        )
+        await _call_service(hass, "cover", service, {"entity_id": cover_entity})
 
     async def _open_shutter() -> None:
         await _call("open_cover")

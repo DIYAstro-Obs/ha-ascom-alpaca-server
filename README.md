@@ -15,7 +15,7 @@
 - **ASCOM Alpaca Server**: Implements the Alpaca protocol to expose HA entities via network.
 - **Discovery**: Supports Alpaca UDP discovery (optional/configurable).
 - **Supported Device Types**:
-  - **Switch**: Map multiple HA `switch` entities to an Alpaca Switch device.
+  - **Switch**: Map multiple HA `switch`, `input_boolean`, `light` or `fan` entities to an Alpaca Switch device. Each switch needs its own, unique name.
   - **ObservingConditions**: Map HA `sensor` entities to astronomical metrics (Temperature, Humidity, Pressure, Wind, etc.). Supports **Multi-Entity Fallback**: assign multiple sensors to one metric; the first available/valid sensor will be used. Values are converted to ASCOM units (°C, hPa, m/s, mm/h) based on each entity's `unit_of_measurement`.
   - **CoverCalibrator**: Map HA `light`, `switch`, or `number` entities to control a flat panel/calibrator. Supports flexible on/off and brightness control mapping. With a `number` entity, `MaxBrightness` is taken from the entity's `max` attribute; lights and switches use 0–255.
   - **Dome** (roll-off roof): Map one HA `cover` entity to an Alpaca Dome that only has a shutter (`OpenShutter`, `CloseShutter`, `AbortSlew`, `ShutterStatus`; no azimuth, altitude, slaving or park). ASCOM has no "observatory" device type: a roll-off roof is a Dome. See "Dome (roll-off roof)" below.
@@ -30,7 +30,7 @@
 ## Configuration
 
 The integration is configured entirely through the Home Assistant UI. Use the **Options** menu of the integration to:
-- Set the Alpaca Listen Port (default 5555).
+- Set the Alpaca Listen Port (default 5555). The dialog refuses a port that another program uses; if the port is taken when Home Assistant starts, the integration says so and tries again later.
 - Enable/Disable UDP Discovery.
 - Map HA entities to Alpaca device types.
 
@@ -51,11 +51,12 @@ In the options menu choose **Map Dome (roll-off roof)** and select the `cover` e
 
 The position decides, not the state text: Home Assistant reports a cover that stands halfway as `open`, but a roof that is neither on its open nor on its closed limit must not be reported as open. The Dome has no park (`CanPark` is false) and is not slaved to a mount.
 
-A command that the cover refuses (for example a locked E-STOP) is not an Alpaca error, the shutter status simply stays as it is. For safety decisions use a SafetyMonitor ([ASCOM Alpaca Safety](https://github.com/DIYAstro-Obs/ha-ascom-alpaca-safety)) as well.
+A command that the cover accepts but does not carry out (for example a locked E-STOP in the firmware) is not an Alpaca error, the shutter status simply stays as it is. If Home Assistant itself refuses the command, the client gets an error with the reason. For safety decisions use a SafetyMonitor ([ASCOM Alpaca Safety](https://github.com/DIYAstro-Obs/ha-ascom-alpaca-safety)) as well.
 
 ## Behaviour of the Alpaca API
 
 - **Commands need PUT.** `OpenShutter`, `CloseShutter`, `AbortSlew`, `SetSwitch`, `SetSwitchValue`, `CalibratorOn`, `CalibratorOff` and the other commands that change something are refused with HTTP 400 when they come as GET or POST. Astronomy software uses PUT; a link or a form on a web page opened in the browser of a computer in your network cannot trigger them. Opening such an address in the browser address bar no longer moves the roof.
+- **Commands wait for Home Assistant.** `OpenShutter`, `SetSwitch`, `CalibratorOn` and the others return when the Home Assistant service has finished (after 10 seconds at the latest). If the service fails, the client gets an ASCOM error (`0x500`) with the reason instead of a success.
 - **An entity without a value is not "off".** A switch whose entity is `unavailable` or `unknown` answers `GetSwitch` with an error (`0x500`), not with `false`. A flat panel in that state reports `CalibratorState` Unknown and no brightness. An ObservingConditions sensor without a value answers with `ValueNotSet` (`0x402`), so clients show "no value" instead of hiding the property as "not implemented".
 - **`TimeSinceLastUpdate`** is the time since the sensor last reported (not since its value last changed). It is an error (`ValueNotSet`) when no mapped sensor has a value.
 - The names of the switches are set in Home Assistant, `SetSwitchName` answers "not implemented".

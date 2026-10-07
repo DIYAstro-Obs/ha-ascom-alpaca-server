@@ -7,6 +7,7 @@ from typing import Any, Awaitable, Callable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 
 from .alpaca import AlpacaDeviceRegistry, AlpacaServer
 from .const import (
@@ -53,7 +54,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Create and start the Alpaca server
     server = AlpacaServer(registry, port, discovery)
-    await server.start()
+    try:
+        await server.start()
+    except OSError as err:
+        # Home Assistant shows the message and tries again later
+        raise ConfigEntryNotReady(
+            f"The Alpaca server cannot listen on port {port}: {err}"
+        ) from err
 
     # Store internal references
     hass.data[DOMAIN][entry.entry_id] = {

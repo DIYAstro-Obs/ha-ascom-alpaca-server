@@ -7,6 +7,7 @@ only ``pytest`` is needed. Importing this module installs the stubs and puts
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 from datetime import datetime, timezone
@@ -44,13 +45,29 @@ class FakeStates:
         return self._states.get(entity_id)
 
 
+class HomeAssistantError(Exception):
+    pass
+
+
+class ConfigEntryNotReady(Exception):
+    pass
+
+
 class FakeServices:
-    """Records service calls instead of executing them."""
+    """Records service calls instead of executing them (or fails, or hangs, on request)."""
 
     def __init__(self):
         self.calls = []
+        self.error = None  # raised by every call
+        self.delay = 0  # seconds every call takes
+        self.blocking = []  # the blocking argument of every call
 
-    async def async_call(self, domain, service, data=None, **kwargs):
+    async def async_call(self, domain, service, data=None, blocking=False, **kwargs):
+        self.blocking.append(blocking)
+        if self.delay:
+            await asyncio.sleep(self.delay)
+        if self.error is not None:
+            raise self.error
         self.calls.append((domain, service, dict(data or {})))
 
 
@@ -67,6 +84,11 @@ def install() -> None:
     ha = _mod("homeassistant")
     _mod("homeassistant.config_entries", ConfigEntry=object)
     _mod("homeassistant.core", HomeAssistant=object)
+    _mod(
+        "homeassistant.exceptions",
+        HomeAssistantError=HomeAssistantError,
+        ConfigEntryNotReady=ConfigEntryNotReady,
+    )
     util = _mod("homeassistant.util")
     util.dt = _mod(
         "homeassistant.util.dt", utcnow=lambda: datetime.now(timezone.utc)

@@ -9,34 +9,49 @@
                     "alpaca_discovery": "Enable Alpaca Discovery"
                 },
                 "data_description": {
-                    "alpaca_port": "TCP port for the Alpaca API (default: 5555)",
+                    "alpaca_port": "TCP port for the Alpaca API (default: 5555). It must not be used by another program.",
                     "alpaca_discovery": "Respond to Alpaca UDP discovery broadcasts on port 32227"
                 }
             }
         },
         "abort": {
             "already_configured": "ASCOM Alpaca Server is already configured."
+        },
+        "error": {
+            "port_in_use": "This port is already used by another program: choose another one."
         }
     },
     "options": {
         "step": {
             "init": {
                 "title": "ASCOM Alpaca Server",
-                "description": "Configure device mappings and server settings."
+                "description": "Configure device mappings and server settings. Saving restarts the Alpaca server: connected clients have to connect again.",
+                "data": {
+                    "menu": "What do you want to change?"
+                }
             },
             "general_settings": {
                 "title": "General Settings",
+                "description": "Port of the Alpaca API and the UDP discovery. A change of the port needs a port that no other program uses.",
                 "data": {
                     "alpaca_port": "Alpaca API Port",
                     "alpaca_discovery": "Enable Alpaca Discovery"
+                },
+                "data_description": {
+                    "alpaca_port": "TCP port for the Alpaca API (default: 5555).",
+                    "alpaca_discovery": "Respond to Alpaca UDP discovery broadcasts on port 32227."
                 }
             },
             "map_switches": {
                 "title": "Map Switch Devices",
-                "description": "Select Home Assistant switch entities to expose as Alpaca Switch devices.",
+                "description": "Select the Home Assistant entities to expose as Alpaca Switch devices: switches, input booleans, lights and fans. The next step asks for the name of each switch.",
                 "data": {
                     "switch_entities": "Switch Entities"
                 }
+            },
+            "map_switch_names": {
+                "title": "Switch Names",
+                "description": "Name the {count} switch(es) as astronomy software should show them. A name must not be empty and must not be used twice."
             },
             "map_calibrator": {
                 "title": "Map CoverCalibrator (Flat Panel)",
@@ -72,6 +87,11 @@
                     "starfwhm": "Star FWHM"
                 }
             }
+        },
+        "error": {
+            "port_in_use": "This port is already used by another program: choose another one.",
+            "name_empty": "The name must not be empty.",
+            "name_duplicate": "Another switch has the same name: the names must differ."
         }
     }
 }

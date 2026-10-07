@@ -15,6 +15,7 @@ from ._common import (
     bad_request,
     common_device_info,
     driver_error,
+    get_param as _get_param,
 )
 
 
@@ -31,13 +32,6 @@ def create_switch_handler(
     Returns:
         An async action handler suitable for ``AlpacaDevice.handler``.
     """
-
-    def _get_param(params: dict[str, Any], name: str) -> Any:
-        name_lower = name.lower()
-        for k, v in params.items():
-            if k.lower() == name_lower:
-                return v
-        return None
 
     def _resolve_id(params: dict[str, Any]) -> int | None:
         """Return the switch index from params, or None if invalid."""

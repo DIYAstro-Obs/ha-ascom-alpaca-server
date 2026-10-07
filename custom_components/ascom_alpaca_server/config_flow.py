@@ -25,7 +25,9 @@ from .const import (
     DEFAULT_ALPACA_DISCOVERY,
     DEFAULT_ALPACA_PORT,
     DOMAIN,
+    SWITCH_DOMAINS,
 )
+from .validation import port_is_free, switch_name_errors
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,25 +44,30 @@ class AlpacaServerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
 
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(
-                title="ASCOM Alpaca Server",
-                data={
-                    CONF_ALPACA_PORT: int(
-                        user_input.get(CONF_ALPACA_PORT, DEFAULT_ALPACA_PORT)
-                    ),
-                    CONF_ALPACA_DISCOVERY: user_input.get(
-                        CONF_ALPACA_DISCOVERY, DEFAULT_ALPACA_DISCOVERY
-                    ),
-                },
-            )
+            port = int(user_input.get(CONF_ALPACA_PORT, DEFAULT_ALPACA_PORT))
+            if port_is_free(port):
+                return self.async_create_entry(
+                    title="ASCOM Alpaca Server",
+                    data={
+                        CONF_ALPACA_PORT: port,
+                        CONF_ALPACA_DISCOVERY: user_input.get(
+                            CONF_ALPACA_DISCOVERY, DEFAULT_ALPACA_DISCOVERY
+                        ),
+                    },
+                )
+            errors[CONF_ALPACA_PORT] = "port_in_use"
 
+        shown = user_input or {}
         return self.async_show_form(
             step_id="user",
+            errors=errors or None,
             data_schema=vol.Schema(
                 {
                     vol.Required(
-                        CONF_ALPACA_PORT, default=DEFAULT_ALPACA_PORT
+                        CONF_ALPACA_PORT,
+                        default=int(shown.get(CONF_ALPACA_PORT, DEFAULT_ALPACA_PORT)),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=1024,
@@ -69,7 +76,8 @@ class AlpacaServerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         )
                     ),
                     vol.Required(
-                        CONF_ALPACA_DISCOVERY, default=DEFAULT_ALPACA_DISCOVERY
+                        CONF_ALPACA_DISCOVERY,
+                        default=shown.get(CONF_ALPACA_DISCOVERY, DEFAULT_ALPACA_DISCOVERY),
                     ): selector.BooleanSelector(),
                 }
             ),
@@ -173,20 +181,23 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Edit port and discovery."""
-        if user_input is not None:
-            options = dict(self._config_entry.options)
-            options[CONF_ALPACA_PORT] = int(
-                user_input.get(CONF_ALPACA_PORT, DEFAULT_ALPACA_PORT)
-            )
-            options[CONF_ALPACA_DISCOVERY] = user_input.get(
-                CONF_ALPACA_DISCOVERY, DEFAULT_ALPACA_DISCOVERY
-            )
-            return self.async_create_entry(title="", data=options)
-
         current_port = self._config_entry.options.get(
             CONF_ALPACA_PORT,
             self._config_entry.data.get(CONF_ALPACA_PORT, DEFAULT_ALPACA_PORT),
         )
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            port = int(user_input.get(CONF_ALPACA_PORT, DEFAULT_ALPACA_PORT))
+            # the port of the running server is "in use", by this very server
+            if port != int(current_port) and not port_is_free(port):
+                errors[CONF_ALPACA_PORT] = "port_in_use"
+            else:
+                options = dict(self._config_entry.options)
+                options[CONF_ALPACA_PORT] = port
+                options[CONF_ALPACA_DISCOVERY] = user_input.get(
+                    CONF_ALPACA_DISCOVERY, DEFAULT_ALPACA_DISCOVERY
+                )
+                return self.async_create_entry(title="", data=options)
         current_discovery = self._config_entry.options.get(
             CONF_ALPACA_DISCOVERY,
             self._config_entry.data.get(
@@ -194,12 +205,15 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
             ),
         )
 
+        shown = user_input or {}
         return self.async_show_form(
             step_id="general_settings",
+            errors=errors or None,
             data_schema=vol.Schema(
                 {
                     vol.Required(
-                        CONF_ALPACA_PORT, default=int(current_port)
+                        CONF_ALPACA_PORT,
+                        default=int(shown.get(CONF_ALPACA_PORT, current_port)),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=1024,
@@ -208,7 +222,8 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
                         )
                     ),
                     vol.Required(
-                        CONF_ALPACA_DISCOVERY, default=current_discovery
+                        CONF_ALPACA_DISCOVERY,
+                        default=shown.get(CONF_ALPACA_DISCOVERY, current_discovery),
                     ): selector.BooleanSelector(),
                 }
             ),
@@ -242,7 +257,7 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
                         CONF_SWITCH_ENTITIES, default=current
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
-                            domain="switch",
+                            domain=list(SWITCH_DOMAINS),
                             multiple=True,
                         )
                     ),
@@ -254,13 +269,16 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Configure custom names for selected switch entities."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            options = dict(self._config_entry.options)
-            options[CONF_SWITCH_ENTITIES] = getattr(
-                self, "_temp_switch_entities", []
-            )
-            options[CONF_SWITCH_NAMES] = user_input
-            return self.async_create_entry(title="", data=options)
+            errors = switch_name_errors(user_input)
+            if not errors:
+                options = dict(self._config_entry.options)
+                options[CONF_SWITCH_ENTITIES] = getattr(
+                    self, "_temp_switch_entities", []
+                )
+                options[CONF_SWITCH_NAMES] = user_input
+                return self.async_create_entry(title="", data=options)
 
         switch_entities = getattr(self, "_temp_switch_entities", [])
         if not switch_entities:
@@ -274,7 +292,10 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
         for entity_id in switch_entities:
             # Determine default string
             default_val = current_names.get(entity_id)
-            if not default_val:
+            if user_input is not None and entity_id in user_input:
+                # what the user typed (after an error), also an empty name
+                default_val = user_input[entity_id]
+            elif not default_val:
                 # Try to get the HA friendly name as fallback
                 state = self.hass.states.get(entity_id)
                 if state and state.name:
@@ -289,6 +310,7 @@ class AlpacaServerOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="map_switch_names",
             data_schema=vol.Schema(schema_dict),
+            errors=errors or None,
             description_placeholders={
                 "count": str(len(switch_entities)),
             },

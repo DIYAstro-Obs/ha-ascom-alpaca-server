@@ -25,6 +25,9 @@ CONF_CALIBRATOR_ONOFF_ENTITY = "calibrator_onoff_entity"
 CONF_CALIBRATOR_BRIGHTNESS_ENTITY = "calibrator_brightness_entity"
 CONF_DOME_COVER_ENTITY = "dome_cover_entity"
 
+# Entities that can be exposed as an Alpaca switch: each has turn_on and turn_off in its own domain
+SWITCH_DOMAINS = ("switch", "input_boolean", "light", "fan")
+
 # --- Data Keys ---
 DATA_REGISTRY = "registry"
 DATA_SERVER = "server"

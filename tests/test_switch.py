@@ -125,3 +125,9 @@ def test_the_names_cannot_be_changed_over_alpaca():
     result = call(handler_for(make_hass()), "setswitchname", {"Id": "0", "Name": "New"})
     assert result["ErrorNumber"] == 0x400
     assert "HttpStatus" not in result
+
+
+def test_parameter_names_are_found_without_regard_to_case():
+    handler = handler_for(make_hass(pump="on"))
+    assert call(handler, "getswitch", {"id": "0"})["Value"] is True
+    assert call(handler, "getswitch", {"ID": "0"})["Value"] is True

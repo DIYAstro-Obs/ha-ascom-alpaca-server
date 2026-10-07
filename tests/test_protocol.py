@@ -233,3 +233,19 @@ def test_the_server_version_matches_the_manifest():
 
     manifest = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / "ascom_alpaca_server" / "manifest.json"
     assert json.loads(manifest.read_text(encoding="utf-8"))["version"] == SERVER_VERSION
+
+
+# ---- a device that cannot do the command ---------------------------------------------------------------------------------
+def test_a_command_the_device_could_not_do_is_an_ascom_exception_not_a_crash(alpaca):
+    """HTTP 200 with the reason in the body: the client raises a DriverException, the request was fine."""
+    alpaca.register(error=common.DeviceError("cover.open_cover failed: E-STOP is locked"), device_type="dome")
+    response = alpaca.send("/api/v1/dome/0/openshutter", "PUT")
+    assert response.status == 200
+    assert response.json["ErrorNumber"] == 0x500
+    assert response.json["ErrorMessage"] == "cover.open_cover failed: E-STOP is locked"
+    assert response.json["Value"] is None
+
+
+def test_a_crash_of_the_handler_is_still_http_500_and_not_an_ascom_exception(alpaca):
+    alpaca.register(error=ValueError("bug"), device_type="dome")
+    assert alpaca.send("/api/v1/dome/0/shutterstatus").status == 500
