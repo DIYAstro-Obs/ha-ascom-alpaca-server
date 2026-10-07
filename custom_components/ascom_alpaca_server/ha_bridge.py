@@ -68,6 +68,12 @@ def rebuild_devices(
     Called on startup and whenever options change. External devices are
     preserved automatically by the registry.
     """
+    # The clients that are connected to a device stay connected when the devices are built again
+    connected = {
+        device.unique_id: device.connected_clients
+        for device in registry.get_all_devices()
+        if not device.is_external
+    }
     registry.remove_internal_devices()
 
     # --- Switch container ---
@@ -149,6 +155,10 @@ def rebuild_devices(
                 is_external=False,
             )
         )
+
+    for device in registry.get_all_devices():
+        if not device.is_external and device.unique_id in connected:
+            device.connected_clients = connected[device.unique_id]
 
     internal = len([d for d in registry.get_all_devices() if not d.is_external])
     external = len([d for d in registry.get_all_devices() if d.is_external])

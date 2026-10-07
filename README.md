@@ -32,7 +32,7 @@
 The integration is configured entirely through the Home Assistant UI. Use the **Options** menu of the integration to:
 - Set the Alpaca Listen Port (default 5555). The dialog refuses a port that another program uses; if the port is taken when Home Assistant starts, the integration says so and tries again later.
 - Enable/Disable UDP Discovery.
-- Map HA entities to Alpaca device types.
+- Map HA entities to Alpaca device types. A new mapping applies at once, without restarting the server: connected clients stay connected. Only a changed port or discovery setting restarts the Alpaca server (clients have to connect again).
 
 ## Dome (roll-off roof)
 

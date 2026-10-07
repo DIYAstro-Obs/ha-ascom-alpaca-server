@@ -25,7 +25,7 @@
         "step": {
             "init": {
                 "title": "ASCOM Alpaca Server",
-                "description": "Configure device mappings and server settings. Saving restarts the Alpaca server: connected clients have to connect again.",
+                "description": "Configure device mappings and server settings. A new mapping applies at once. A changed port or discovery setting restarts the Alpaca server: connected clients have to connect again.",
                 "data": {
                     "menu": "What do you want to change?"
                 }

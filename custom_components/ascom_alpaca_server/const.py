@@ -31,3 +31,4 @@ SWITCH_DOMAINS = ("switch", "input_boolean", "light", "fan")
 # --- Data Keys ---
 DATA_REGISTRY = "registry"
 DATA_SERVER = "server"
+DATA_LISTEN = "listen"  # (port, discovery) the running server was started with
