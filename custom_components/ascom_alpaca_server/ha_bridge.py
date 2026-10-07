@@ -157,6 +157,11 @@ def rebuild_devices(
     )
 
 
+def _has_no_value(state: Any) -> bool:
+    """The entity does not exist or reports no value (unavailable, unknown)."""
+    return state is None or state.state in ("unavailable", "unknown")
+
+
 # ---------------------------------------------------------------------------
 # Switch channel factory
 # ---------------------------------------------------------------------------
@@ -177,7 +182,7 @@ def _build_switch_channels(
 
         async def _get_state(eid: str = entity_id) -> bool | None:
             state = hass.states.get(eid)
-            if state is None:
+            if _has_no_value(state):
                 return None
             return state.state == "on"
 
@@ -247,17 +252,17 @@ def _build_oc_channels(
                 )
             return None
 
-        async def _get_seconds(eids: list[str] = entity_ids) -> float:
+        async def _get_seconds(eids: list[str] = entity_ids) -> float | None:
             for eid in eids:
                 state = hass.states.get(eid)
-                if state is None or state.state in (
-                    "unavailable", "unknown",
-                ):
+                if _has_no_value(state):
                     continue
-                if state.last_updated:
-                    now = dt_util.utcnow()
-                    return (now - state.last_updated).total_seconds()
-            return 0.0
+                # last_reported moves with every report of the sensor, last_updated only when the
+                # value changes: a sensor that keeps reporting the same value is not old
+                reported = getattr(state, "last_reported", None) or state.last_updated
+                if reported:
+                    return (dt_util.utcnow() - reported).total_seconds()
+            return None
 
         desc_parts = ", ".join(entity_ids)
         channels[prop_name] = OCSensorChannel(
@@ -333,15 +338,17 @@ def _build_calibrator_channel(
     if onoff_entity:
         async def _get_is_on() -> bool | None:
             state = hass.states.get(onoff_entity)
-            if state is None:
+            if _has_no_value(state):
                 return None
             return state.state == "on"
     else:
-        # number-only: on = value > 0
+        # no on/off entity: a light is on when it says so, a number when its value is above 0
         async def _get_is_on() -> bool | None:
             state = hass.states.get(brightness_entity)
-            if state is None:
+            if _has_no_value(state):
                 return None
+            if brightness_domain == "light":
+                return state.state == "on"
             try:
                 return float(state.state) > 0
             except (ValueError, TypeError):
@@ -352,7 +359,7 @@ def _build_calibrator_channel(
         # Brightness from a number entity (value assumed 0–max)
         async def _get_brightness() -> int | None:
             state = hass.states.get(brightness_entity)
-            if state is None:
+            if _has_no_value(state):
                 return None
             try:
                 return int(float(state.state))
@@ -364,7 +371,7 @@ def _build_calibrator_channel(
 
         async def _get_brightness() -> int | None:
             state = hass.states.get(light_eid)
-            if state is None:
+            if _has_no_value(state):
                 return None
             if state.state != "on":
                 return 0
@@ -377,7 +384,7 @@ def _build_calibrator_channel(
         # switch-only: binary brightness
         async def _get_brightness() -> int | None:
             state = hass.states.get(onoff_entity)
-            if state is None:
+            if _has_no_value(state):
                 return None
             return _CALIBRATOR_MAX_BRIGHTNESS if state.state == "on" else 0
 

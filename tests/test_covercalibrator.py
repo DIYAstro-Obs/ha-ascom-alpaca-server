@@ -98,3 +98,50 @@ def test_light_plus_number_sets_the_number_not_the_light_brightness():
     call(handler, "calibratoron", {"Brightness": "40"})
     assert ("number", "set_value", {"entity_id": "number.level", "value": 40}) in hass.services.calls
     assert ("light", "turn_on", {"entity_id": "light.panel"}) in hass.services.calls
+
+
+# ---- a light in the brightness field, without an on/off entity -------------------------------------------------
+CALIBRATOR_OFF, CALIBRATOR_READY, CALIBRATOR_UNKNOWN = 1, 3, 4
+
+
+def test_a_light_as_the_only_entity_in_the_brightness_field_reports_on_and_off():
+    hass = FakeHass()
+    hass.states.set("light.panel", "on", {"brightness": 200})
+    handler = handler_for(hass, "", "light.panel")
+    assert call(handler, "calibratorstate")["Value"] == CALIBRATOR_READY
+    assert call(handler, "brightness")["Value"] == 200
+
+    hass.states.set("light.panel", "off", {})
+    assert call(handler, "calibratorstate")["Value"] == CALIBRATOR_OFF
+    assert call(handler, "brightness")["Value"] == 0
+
+
+def test_a_number_as_the_only_entity_is_on_above_zero():
+    hass = FakeHass()
+    hass.states.set("number.level", "0", {"max": 100})
+    handler = handler_for(hass, "", "number.level")
+    assert call(handler, "calibratorstate")["Value"] == CALIBRATOR_OFF
+    hass.states.set("number.level", "30", {"max": 100})
+    assert call(handler, "calibratorstate")["Value"] == CALIBRATOR_READY
+
+
+# ---- an entity without a value is not "off" and not "0" ---------------------------------------------------------
+@pytest.mark.parametrize(
+    "onoff, brightness, entity",
+    [
+        ("light.panel", "", "light.panel"),
+        ("switch.panel", "", "switch.panel"),
+        ("", "number.level", "number.level"),
+        ("", "light.panel", "light.panel"),
+    ],
+)
+@pytest.mark.parametrize("state", ["unavailable", "unknown"])
+def test_an_unavailable_panel_is_unknown_and_reports_no_brightness(onoff, brightness, entity, state):
+    hass = FakeHass()
+    hass.states.set(entity, state)
+    handler = handler_for(hass, onoff, brightness)
+    assert call(handler, "calibratorstate")["Value"] == CALIBRATOR_UNKNOWN
+
+    result = call(handler, "brightness")
+    assert result["ErrorNumber"] == 0x500
+    assert "HttpStatus" not in result

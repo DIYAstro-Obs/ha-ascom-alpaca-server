@@ -90,7 +90,7 @@ def alpaca(monkeypatch):
     registry = registry_module.AlpacaDeviceRegistry()
     server = server_module.AlpacaServer(registry, 11111, discovery_enabled=False)
 
-    def register(result=None, error=None):
+    def register(result=None, error=None, device_type="safetymonitor"):
         calls = []
 
         async def handler(action, params):
@@ -99,7 +99,7 @@ def alpaca(monkeypatch):
                 raise error
             return result
 
-        registry.register_device("safetymonitor", "Test", handler)
+        registry.register_device(device_type, "Test", handler)
         return calls
 
     def send(*args, **kwargs):
@@ -180,3 +180,56 @@ def test_every_client_without_a_client_id_counts_as_client_0(alpaca):
     alpaca.register({"Value": True})
     alpaca.send("/api/v1/safetymonitor/0/connected", "PUT", form={"Connected": "true"})
     assert alpaca.send("/api/v1/safetymonitor/0/connected").json["Value"] is True
+
+
+# ---- Commands only as PUT ----------------------------------------------------------------------------------
+COMMANDS = {
+    "dome": ["openshutter", "closeshutter", "abortslew", "findhome", "park", "setpark",
+             "slewtoaltitude", "slewtoazimuth", "synctoazimuth"],
+    "switch": ["setswitch", "setswitchvalue", "setswitchname"],
+    "covercalibrator": ["calibratoron", "calibratoroff", "opencover", "closecover", "haltcover"],
+    "observingconditions": ["refresh"],
+}
+ALL_COMMANDS = [(t, a) for t, actions in COMMANDS.items() for a in actions]
+
+
+@pytest.mark.parametrize("device_type, action", ALL_COMMANDS)
+@pytest.mark.parametrize("method", ["GET", "POST", "HEAD", "DELETE"])
+def test_a_command_is_refused_unless_it_is_a_put(alpaca, device_type, action, method):
+    """A link, an <img> or a form on any web page can send a GET or POST; only a PUT needs a preflight."""
+    calls = alpaca.register({"Value": None}, device_type=device_type)
+    response = alpaca.send(f"/api/v1/{device_type}/0/{action}", method)
+    assert response.status == 400
+    assert "PUT" in response.text
+    assert calls == []
+
+
+@pytest.mark.parametrize("device_type, action", ALL_COMMANDS)
+def test_a_command_as_a_put_reaches_the_device(alpaca, device_type, action):
+    calls = alpaca.register({"Value": None}, device_type=device_type)
+    response = alpaca.send(f"/api/v1/{device_type}/0/{action}", "PUT")
+    assert response.status == 200
+    assert calls == [action]
+
+
+@pytest.mark.parametrize("action", ["shutterstatus", "issafe", "getswitch", "calibratorstate", "temperature", "averageperiod"])
+def test_properties_can_still_be_read_with_a_get(alpaca, action):
+    calls = alpaca.register({"Value": 0}, device_type="dome")
+    assert alpaca.send(f"/api/v1/dome/0/{action}").status == 200
+    assert calls == [action]
+
+
+def test_the_action_name_is_not_case_sensitive_for_the_command_check(alpaca):
+    alpaca.register({"Value": None}, device_type="dome")
+    assert alpaca.send("/api/v1/dome/0/OpenShutter", "GET").status == 400
+
+
+# ---- the version exists twice and has to match ------------------------------------------------------------------
+def test_the_server_version_matches_the_manifest():
+    import json
+    import pathlib
+
+    from ascom_alpaca_server.alpaca.const import SERVER_VERSION
+
+    manifest = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / "ascom_alpaca_server" / "manifest.json"
+    assert json.loads(manifest.read_text(encoding="utf-8"))["version"] == SERVER_VERSION

@@ -49,7 +49,8 @@ class OCSensorChannel:
     property_name: str
     description: str
     get_value: Callable[[], Awaitable[float | None]]
-    get_seconds_since_update: Callable[[], Awaitable[float]]
+    # None: no mapped sensor has a value
+    get_seconds_since_update: Callable[[], Awaitable[float | None]]
 
 
 @dataclass

@@ -53,6 +53,13 @@ The position decides, not the state text: Home Assistant reports a cover that st
 
 A command that the cover refuses (for example a locked E-STOP) is not an Alpaca error, the shutter status simply stays as it is. For safety decisions use a SafetyMonitor ([ASCOM Alpaca Safety](https://github.com/DIYAstro-Obs/ha-ascom-alpaca-safety)) as well.
 
+## Behaviour of the Alpaca API
+
+- **Commands need PUT.** `OpenShutter`, `CloseShutter`, `AbortSlew`, `SetSwitch`, `SetSwitchValue`, `CalibratorOn`, `CalibratorOff` and the other commands that change something are refused with HTTP 400 when they come as GET or POST. Astronomy software uses PUT; a link or a form on a web page opened in the browser of a computer in your network cannot trigger them. Opening such an address in the browser address bar no longer moves the roof.
+- **An entity without a value is not "off".** A switch whose entity is `unavailable` or `unknown` answers `GetSwitch` with an error (`0x500`), not with `false`. A flat panel in that state reports `CalibratorState` Unknown and no brightness. An ObservingConditions sensor without a value answers with `ValueNotSet` (`0x402`), so clients show "no value" instead of hiding the property as "not implemented".
+- **`TimeSinceLastUpdate`** is the time since the sensor last reported (not since its value last changed). It is an error (`ValueNotSet`) when no mapped sensor has a value.
+- The names of the switches are set in Home Assistant, `SetSwitchName` answers "not implemented".
+
 ## For Integration Developers
 
 Other Home Assistant integrations can publish their own devices through ASCOM Alpaca Server. While the server is running, it exposes a registration function under `hass.data["ascom_alpaca_server_api"]`:
@@ -72,6 +79,7 @@ The `handler` is an `async` function `(action: str, params: dict) -> dict`. It r
 What the server does for every device, so that a handler does not have to:
 
 - **`Connected`** is kept per client (`ClientID`) by the server and never reaches the handler. A GET tells whether the client of the request has connected, a PUT connects or disconnects it, so a second client that disconnects does not disconnect the first one. Requests without a `ClientID` count as client 0. The server does not refuse other requests of a client that has not connected.
+- **Registering again**: a device that registers under the same type and name as an earlier one replaces it and keeps its number.
 - **HTTP status**: a request that was understood gets **200**; an exception of the device (not implemented, invalid value, ...) is the `ErrorNumber` in the JSON body, which the client raises as the matching ASCOM exception. A handler that did not understand the request (unknown action, missing or malformed parameter) returns `"HttpStatus": 400`: the server answers 400 with the `ErrorMessage` as plain text. An exception in the handler is answered with 500 and a text. A request for a device that does not exist is 400.
 
 [ASCOM Alpaca Safety](https://github.com/DIYAstro-Obs/ha-ascom-alpaca-safety) uses this API to expose its `SafetyMonitor`.

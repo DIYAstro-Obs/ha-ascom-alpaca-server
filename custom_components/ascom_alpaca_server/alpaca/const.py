@@ -27,6 +27,36 @@ OC_PROPERTIES: dict[str, str] = {
     "starfwhm": "Star FWHM",
 }
 
+# --- Commands ---
+# Actions that change something (move the roof, switch, trigger a refresh): the server accepts them
+# only as PUT. A GET or POST can be sent by any web page the browser of a LAN computer opens, a PUT cannot.
+COMMAND_ACTIONS = frozenset(
+    {
+        # Dome
+        "openshutter",
+        "closeshutter",
+        "abortslew",
+        "findhome",
+        "park",
+        "setpark",
+        "slewtoaltitude",
+        "slewtoazimuth",
+        "synctoazimuth",
+        # Switch
+        "setswitch",
+        "setswitchvalue",
+        "setswitchname",
+        # CoverCalibrator
+        "calibratoron",
+        "calibratoroff",
+        "opencover",
+        "closecover",
+        "haltcover",
+        # ObservingConditions
+        "refresh",
+    }
+)
+
 # --- Server Info ---
 SERVER_NAME = "ASCOM Alpaca Server"
 SERVER_MANUFACTURER = "ASCOM Alpaca Server"

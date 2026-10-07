@@ -6,8 +6,16 @@ from typing import Any
 
 from ..const import SERVER_VERSION
 
-# ASCOM error number "not implemented"
+# ASCOM error numbers
 ERROR_NOT_IMPLEMENTED = 0x400
+ERROR_INVALID_VALUE = 0x401
+ERROR_VALUE_NOT_SET = 0x402  # the property is there, but has no value (now)
+ERROR_UNSPECIFIED = 0x500  # the device does not answer
+
+
+def driver_error(number: int, message: str) -> dict[str, Any]:
+    """An exception of the device. The server answers HTTP 200 with the number in the body."""
+    return {"Value": None, "ErrorNumber": number, "ErrorMessage": message}
 
 
 def bad_request(message: str) -> dict[str, Any]:

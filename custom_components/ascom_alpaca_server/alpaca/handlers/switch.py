@@ -9,7 +9,13 @@ from __future__ import annotations
 from typing import Any
 
 from ..models import ActionHandler, SwitchChannel
-from ._common import bad_request, common_device_info
+from ._common import (
+    ERROR_NOT_IMPLEMENTED,
+    ERROR_UNSPECIFIED,
+    bad_request,
+    common_device_info,
+    driver_error,
+)
 
 
 def create_switch_handler(
@@ -61,6 +67,12 @@ def create_switch_handler(
             "ErrorMessage": f"Invalid switch Id: {_get_param(params, 'id')}",
         }
 
+    def _unavailable(channel: SwitchChannel) -> dict[str, Any]:
+        """The entity of the switch has no value: the device does not answer (not "off")."""
+        return driver_error(
+            ERROR_UNSPECIFIED, f"Switch '{channel.name}' is unavailable"
+        )
+
     async def handle_switch(
         action: str, params: dict[str, Any]
     ) -> dict[str, Any]:
@@ -94,11 +106,7 @@ def create_switch_handler(
                 return _id_error(params, default_value=False)
             state = await channels[idx].get_state()
             if state is None:
-                return {
-                    "Value": False,
-                    "ErrorNumber": 0x400,
-                    "ErrorMessage": f"Switch '{channels[idx].name}' unavailable",
-                }
+                return _unavailable(channels[idx])
             return {"Value": state}
 
         if action_lower == "getswitchname":
@@ -118,6 +126,8 @@ def create_switch_handler(
             if idx is None:
                 return _id_error(params, default_value=0.0)
             state = await channels[idx].get_state()
+            if state is None:
+                return _unavailable(channels[idx])
             return {"Value": 1.0 if state else 0.0}
 
         # --- Switch value range ---
@@ -188,7 +198,9 @@ def create_switch_handler(
             name = _get_param(params, "name")
             if name is None:
                 return bad_request("Parameter 'Name' missing")
-            return {"Value": None}  # read-only names
+            return driver_error(
+                ERROR_NOT_IMPLEMENTED, "The names of the switches are set in Home Assistant"
+            )
 
         # --- Standard device info ---
 

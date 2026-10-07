@@ -10,7 +10,14 @@ from typing import Any
 
 from ..const import OC_PROPERTIES
 from ..models import ActionHandler, OCSensorChannel
-from ._common import bad_request, common_device_info
+from ._common import (
+    ERROR_INVALID_VALUE,
+    ERROR_NOT_IMPLEMENTED,
+    ERROR_VALUE_NOT_SET,
+    bad_request,
+    common_device_info,
+    driver_error,
+)
 
 
 def create_oc_handler(
@@ -89,14 +96,11 @@ def create_oc_handler(
             channel = channels[action_lower]
             value = await channel.get_value()
             if value is None:
-                return {
-                    "Value": 0.0,
-                    "ErrorNumber": 0x400,
-                    "ErrorMessage": (
-                        f"Sensor '{channel.description}' "
-                        f"unavailable or invalid"
-                    ),
-                }
+                # mapped, but no value now: not "not implemented", clients would hide the property
+                return driver_error(
+                    ERROR_VALUE_NOT_SET,
+                    f"Sensor '{channel.description}' unavailable or invalid",
+                )
             return {"Value": value}
 
         # --- Time since last update ---
@@ -114,17 +118,26 @@ def create_oc_handler(
                 for ch in channels.values():
                     if ch is not None:
                         t = await ch.get_seconds_since_update()
-                        times.append(t)
-                return {"Value": min(times) if times else 0.0}
+                        if t is not None:
+                            times.append(t)
+                if not times:
+                    return driver_error(ERROR_VALUE_NOT_SET, "No sensor has a value")
+                return {"Value": min(times)}
 
+            if sensor_name not in OC_PROPERTIES:
+                return driver_error(
+                    ERROR_INVALID_VALUE, f"Unknown sensor name '{sensor_name}'"
+                )
             channel = channels.get(sensor_name)
             if not channel:
-                return {
-                    "Value": 0.0,
-                    "ErrorNumber": 0x400,
-                    "ErrorMessage": f"Sensor '{sensor_name}' not mapped",
-                }
+                return driver_error(
+                    ERROR_NOT_IMPLEMENTED, f"Sensor '{sensor_name}' not mapped"
+                )
             seconds = await channel.get_seconds_since_update()
+            if seconds is None:
+                return driver_error(
+                    ERROR_VALUE_NOT_SET, f"Sensor '{sensor_name}' has no value"
+                )
             return {"Value": seconds}
 
         # --- Sensor description ---
@@ -142,13 +155,15 @@ def create_oc_handler(
                     "ErrorNumber": 0x401,
                     "ErrorMessage": "SensorName parameter missing or empty",
                 }
+            if sensor_name not in OC_PROPERTIES:
+                return driver_error(
+                    ERROR_INVALID_VALUE, f"Unknown sensor name '{sensor_name}'"
+                )
             channel = channels.get(sensor_name)
             if not channel:
-                return {
-                    "Value": "",
-                    "ErrorNumber": 0x400,
-                    "ErrorMessage": f"Sensor '{sensor_name}' not mapped",
-                }
+                return driver_error(
+                    ERROR_NOT_IMPLEMENTED, f"Sensor '{sensor_name}' not mapped"
+                )
             return {"Value": channel.description}
 
         # --- Standard device info ---

@@ -88,6 +88,18 @@ class AlpacaDeviceRegistry:
         dt_lower = device_type.lower()
         stable_key = f"{dt_lower}:{device_name}"
 
+        # A device that registers again under the same name replaces the old one (which could not
+        # unregister): two devices with one number would leave the old handler answering.
+        self._devices = [
+            d
+            for d in self._devices
+            if not (
+                d.is_external
+                and d.device_type == dt_lower
+                and d.device_name == device_name
+            )
+        ]
+
         # Reuse previous device number if this name was registered before
         if stable_key in self._name_number_map:
             device_number = self._name_number_map[stable_key]

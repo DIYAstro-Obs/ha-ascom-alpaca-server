@@ -12,7 +12,12 @@ from __future__ import annotations
 from typing import Any
 
 from ..models import ActionHandler, CalibratorChannel
-from ._common import bad_request, common_device_info
+from ._common import (
+    ERROR_UNSPECIFIED,
+    bad_request,
+    common_device_info,
+    driver_error,
+)
 
 # CalibratorStatus enum values (ASCOM spec)
 _CALIBRATOR_NOT_PRESENT = 0
@@ -78,7 +83,11 @@ def create_covercalibrator_handler(
 
         if action_lower == "brightness":
             brightness = await channel.get_brightness()
-            return {"Value": brightness if brightness is not None else 0}
+            if brightness is None:
+                return driver_error(
+                    ERROR_UNSPECIFIED, "The calibrator does not report a brightness"
+                )
+            return {"Value": brightness}
 
         if action_lower == "maxbrightness":
             return {"Value": channel.get_max_brightness()}

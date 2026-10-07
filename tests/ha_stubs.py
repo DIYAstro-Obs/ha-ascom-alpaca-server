@@ -28,6 +28,7 @@ class FakeState:
         self.entity_id = entity_id
         self.state = state
         self.attributes = attributes or {}
+        self.name = self.attributes.get("friendly_name") or entity_id
         self.last_updated = datetime.now(timezone.utc)
         self.last_reported = self.last_updated
 

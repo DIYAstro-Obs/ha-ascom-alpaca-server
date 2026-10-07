@@ -14,6 +14,7 @@ from typing import Any
 from aiohttp import web
 
 from .const import ALPACA_DISCOVERY_PORT, SERVER_MANUFACTURER, SERVER_NAME, SERVER_VERSION
+from .const import COMMAND_ACTIONS
 from .device_registry import AlpacaDeviceRegistry
 from .handlers._common import handle_connected
 
@@ -170,6 +171,11 @@ class AlpacaServer:
         if device is None:
             return self._error_response(
                 f"Device {device_type}/{device_number} not found"
+            )
+
+        if action.lower() in COMMAND_ACTIONS and request.method != "PUT":
+            return self._error_response(
+                f"'{action}' is a command: send it with PUT, not {request.method}"
             )
 
         if action.lower() == "connected":
