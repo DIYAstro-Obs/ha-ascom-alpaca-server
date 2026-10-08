@@ -94,9 +94,27 @@ An ObservingConditions property can come from a `sensor` entity (one value per e
 
 A weather entity has nothing for the other properties (RainRate, SkyBrightness, SkyQuality, SkyTemperature, StarFWHM): use sensors there. You can mix both for one property; the first entity that has a value answers, the others are the fallback. The values of an online weather service are a forecast model for your region, not a measurement at the observatory: a local sensor is better where it matters.
 
+## Computed values: dew point and dew point spread
+
+The server computes two values from the ObservingConditions mapping, so that they are there whatever the sources are (sensors or a weather entity):
+
+- **Dew point.** If temperature and humidity are mapped but **no dew point**, the server computes it (Magnus formula, accurate to about 0.4 °C between -45 and 60 °C, humidity above 0 and up to 100 %). It answers as the ASCOM property `DewPoint`, and the description of the device marks it as `dewpoint (computed)`. A dew point that you map always wins.
+- **Dew point spread.** With a temperature and a dew point (mapped or computed) the server computes temperature minus dew point in °C. A small spread means that dew forms on cold optics and mirrors.
+
+Where you find them:
+
+| | Home Assistant | Alpaca |
+|---|---|---|
+| Dew point (computed) | sensor **Dew Point** (only while it is computed) | property `DewPoint` |
+| Dew point spread | sensor **Dew Point Spread** | custom action `DewPointSpread` |
+
+- The sensors read their value once a minute and are `unavailable` while a source has no value. Use them in dashboards or in a Safety rule (for example the spread `<` 2).
+- A sensor exists only while its value can be computed. A new mapping that makes one appear or disappear (for example mapping a dew point of your own) reloads the integration once, which restarts the Alpaca server; every other new mapping is applied at once.
+- The action is listed in `SupportedActions` and is a command (PUT only): `PUT /api/v1/observingconditions/0/action` with the fields `Action=DewPointSpread` and `Parameters=` answers the spread as text with one decimal, for example `"3.4"`. An unknown action name gives the ASCOM error `0x40C`, a spread without a value `0x402`. As far as we know N.I.N.A. does not call custom actions; it has temperature and dew point as standard values and can form the difference itself.
+
 ## Behaviour of the Alpaca API
 
-- **Commands need PUT.** `OpenShutter`, `CloseShutter`, `AbortSlew`, `SetSwitch`, `SetSwitchValue`, `CalibratorOn`, `CalibratorOff` and the other commands that change something are refused with HTTP 400 when they come as GET or POST. Astronomy software uses PUT; a link or a form on a web page opened in the browser of a computer in your network cannot trigger them. Opening such an address in the browser address bar no longer moves the roof.
+- **Commands need PUT.** `OpenShutter`, `CloseShutter`, `AbortSlew`, `SetSwitch`, `SetSwitchValue`, `CalibratorOn`, `CalibratorOff`, the custom `Action` and the other commands that change something are refused with HTTP 400 when they come as GET or POST. Astronomy software uses PUT; a link or a form on a web page opened in the browser of a computer in your network cannot trigger them. Opening such an address in the browser address bar no longer moves the roof.
 - **Commands wait for Home Assistant.** `OpenShutter`, `SetSwitch`, `CalibratorOn` and the others return when the Home Assistant service has finished (after 10 seconds at the latest). If the service fails, the client gets an ASCOM error (`0x500`) with the reason instead of a success.
 - **An entity without a value is not "off".** A switch whose entity is `unavailable` or `unknown` answers `GetSwitch` with an error (`0x500`), not with `false`. A flat panel in that state reports `CalibratorState` Unknown and no brightness. An ObservingConditions sensor without a value answers with `ValueNotSet` (`0x402`), so clients show "no value" instead of hiding the property as "not implemented".
 - **`TimeSinceLastUpdate`** is the time since the sensor last reported (not since its value last changed). It is an error (`ValueNotSet`) when no mapped sensor has a value.

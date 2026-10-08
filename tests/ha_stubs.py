@@ -71,10 +71,29 @@ class FakeServices:
         self.calls.append((domain, service, dict(data or {})))
 
 
+class FakeRegistryEntry:
+    def __init__(self, entity_id, unique_id):
+        self.entity_id = entity_id
+        self.unique_id = unique_id
+
+
+class FakeEntityRegistry:
+    """The entity registry: a list of entries of one config entry."""
+
+    def __init__(self):
+        self.entries = []
+        self.removed = []
+
+    def async_remove(self, entity_id):
+        self.removed.append(entity_id)
+        self.entries = [e for e in self.entries if e.entity_id != entity_id]
+
+
 class FakeHass:
     def __init__(self):
         self.states = FakeStates()
         self.services = FakeServices()
+        self.entity_registry = FakeEntityRegistry()
 
 
 def install() -> None:
@@ -90,6 +109,27 @@ def install() -> None:
 
     helpers = _mod("homeassistant.helpers")
     helpers.instance_id = _mod("homeassistant.helpers.instance_id", async_get=async_get_instance_id)
+    helpers.entity = _mod("homeassistant.helpers.entity", DeviceInfo=dict)
+    helpers.entity_platform = _mod("homeassistant.helpers.entity_platform", AddEntitiesCallback=object)
+    helpers.entity_registry = _mod(
+        "homeassistant.helpers.entity_registry",
+        async_get=lambda hass: hass.entity_registry,
+        async_entries_for_config_entry=lambda registry, entry_id: list(registry.entries),
+    )
+
+    class SensorEntity:
+        @property
+        def unique_id(self):  # like Home Assistant's Entity
+            return getattr(self, "_attr_unique_id", None)
+
+    components = _mod("homeassistant.components")
+    components.sensor = _mod(
+        "homeassistant.components.sensor",
+        SensorEntity=SensorEntity,
+        SensorDeviceClass=types.SimpleNamespace(TEMPERATURE="temperature"),
+        SensorStateClass=types.SimpleNamespace(MEASUREMENT="measurement"),
+    )
+    ha.components = components
     _mod(
         "homeassistant.exceptions",
         HomeAssistantError=HomeAssistantError,

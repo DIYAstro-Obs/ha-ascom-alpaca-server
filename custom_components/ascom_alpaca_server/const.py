@@ -36,3 +36,7 @@ OC_DOMAINS = ("sensor", "weather")
 DATA_REGISTRY = "registry"
 DATA_SERVER = "server"
 DATA_LISTEN = "listen"  # (port, discovery) the running server was started with
+DATA_DERIVED = "derived"  # DerivedChannels of the current mapping (read by the sensors)
+DATA_FLAGS = "derived_flags"  # which sensors were created at setup: a change needs a reload
+
+PLATFORMS = ["sensor"]

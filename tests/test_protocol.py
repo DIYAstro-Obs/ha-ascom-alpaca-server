@@ -188,7 +188,7 @@ COMMANDS = {
              "slewtoaltitude", "slewtoazimuth", "synctoazimuth"],
     "switch": ["setswitch", "setswitchvalue", "setswitchname"],
     "covercalibrator": ["calibratoron", "calibratoroff", "opencover", "closecover", "haltcover"],
-    "observingconditions": ["refresh"],
+    "observingconditions": ["refresh", "action"],
 }
 ALL_COMMANDS = [(t, a) for t, actions in COMMANDS.items() for a in actions]
 

@@ -10,6 +10,7 @@ from ..const import SERVER_VERSION
 ERROR_NOT_IMPLEMENTED = 0x400
 ERROR_INVALID_VALUE = 0x401
 ERROR_VALUE_NOT_SET = 0x402  # the property is there, but has no value (now)
+ERROR_ACTION_NOT_IMPLEMENTED = 0x40C  # the device does not have this custom action
 ERROR_UNSPECIFIED = 0x500  # the device does not answer
 
 

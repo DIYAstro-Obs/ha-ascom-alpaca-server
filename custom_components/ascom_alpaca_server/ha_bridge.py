@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -48,6 +49,7 @@ from .const import (
     CONF_SWITCH_ENTITIES,
     CONF_SWITCH_NAMES,
 )
+from .derived import dew_point, dew_point_spread
 from .unit_conversion import to_alpaca_unit, weather_value
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,16 +60,34 @@ _LOGGER = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@dataclass
+class DerivedChannels:
+    """The values computed from the ObservingConditions mapping (None: not possible with this mapping).
+
+    The sensors of the integration read them; ``flags`` tells which sensors exist.
+    """
+
+    dew_point: OCSensorChannel | None = None  # computed from temperature and humidity (none is mapped)
+    spread: OCSensorChannel | None = None  # temperature minus dew point (mapped or computed)
+
+    @property
+    def flags(self) -> tuple[bool, bool]:
+        """Which sensors exist: a change of the flags needs a reload of the integration."""
+        return (self.dew_point is not None, self.spread is not None)
+
+
 def rebuild_devices(
     registry: AlpacaDeviceRegistry,
     hass: HomeAssistant,
     options: dict[str, Any],
-) -> None:
+) -> DerivedChannels:
     """Rebuild all internal devices from HA config options.
 
     Called on startup and whenever options change. External devices are
-    preserved automatically by the registry.
+    preserved automatically by the registry. Returns the computed values of the
+    ObservingConditions device.
     """
+    derived = DerivedChannels()
     # The clients that are connected to a device stay connected when the devices are built again
     connected = {
         device.unique_id: device.connected_clients
@@ -98,8 +118,14 @@ def rebuild_devices(
     oc_mapping: dict[str, str] = options.get(CONF_OBSERVING_CONDITIONS, {})
     if any(oc_mapping.values()):
         channels_oc = _build_oc_channels(hass, oc_mapping)
+        extras = build_oc_extras(channels_oc)
+        dew = channels_oc.get("dewpoint")
+        derived = DerivedChannels(
+            dew_point=dew if dew is not None and dew.computed else None,
+            spread=extras.get("DewPointSpread"),
+        )
         handler_oc = create_oc_handler(
-            channels_oc, device_name="HA ObservingConditions"
+            channels_oc, device_name="HA ObservingConditions", actions=extras
         )
         device_number_oc = registry.allocate_number(
             DEVICE_TYPE_OBSERVINGCONDITIONS
@@ -172,6 +198,7 @@ def rebuild_devices(
         internal,
         external,
     )
+    return derived
 
 
 # How long a command waits for its Home Assistant service
@@ -315,7 +342,60 @@ def _build_oc_channels(
             get_seconds_since_update=_get_seconds,
         )
 
+    # No dew point mapped, but temperature and humidity are: compute it (a mapped dew point always wins)
+    temperature, humidity = channels.get("temperature"), channels.get("humidity")
+    if "dewpoint" not in channels and temperature is not None and humidity is not None:
+        channels["dewpoint"] = _computed_channel(
+            "dewpoint",
+            "Computed from temperature and humidity (Magnus formula)",
+            temperature,
+            humidity,
+            dew_point,
+        )
+
     return channels
+
+
+def _computed_channel(
+    prop: str,
+    description: str,
+    first: OCSensorChannel,
+    second: OCSensorChannel,
+    compute: Any,
+) -> OCSensorChannel:
+    """A channel whose value is computed from two other channels (None while one of them has no value)."""
+
+    async def _get_value() -> float | None:
+        return compute(await first.get_value(), await second.get_value())
+
+    async def _get_seconds() -> float | None:
+        ages = [await first.get_seconds_since_update(), await second.get_seconds_since_update()]
+        return None if None in ages else max(ages)
+
+    return OCSensorChannel(
+        property_name=prop,
+        description=description,
+        get_value=_get_value,
+        get_seconds_since_update=_get_seconds,
+        computed=True,
+    )
+
+
+def build_oc_extras(channels: dict[str, OCSensorChannel]) -> dict[str, OCSensorChannel]:
+    """The custom actions of the ObservingConditions device: ``DewPointSpread`` (temperature minus dew point)
+    when both are there, mapped or computed."""
+    temperature, dew = channels.get("temperature"), channels.get("dewpoint")
+    if temperature is None or dew is None:
+        return {}
+    return {
+        "DewPointSpread": _computed_channel(
+            "dewpointspread",
+            "Temperature minus dew point",
+            temperature,
+            dew,
+            dew_point_spread,
+        )
+    }
 
 
 # ---------------------------------------------------------------------------

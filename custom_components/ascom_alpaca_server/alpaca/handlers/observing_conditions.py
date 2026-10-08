@@ -11,6 +11,7 @@ from typing import Any
 from ..const import OC_PROPERTIES
 from ..models import ActionHandler, OCSensorChannel
 from ._common import (
+    ERROR_ACTION_NOT_IMPLEMENTED,
     ERROR_INVALID_VALUE,
     ERROR_NOT_IMPLEMENTED,
     ERROR_VALUE_NOT_SET,
@@ -24,16 +25,20 @@ from ._common import (
 def create_oc_handler(
     channels: dict[str, OCSensorChannel],
     device_name: str = "ObservingConditions",
+    actions: dict[str, OCSensorChannel] | None = None,
 ) -> ActionHandler:
     """Create an Alpaca ObservingConditions action handler.
 
     Args:
         channels: Mapping of property name (lowercase) to sensor channel.
         device_name: Name reported by the Alpaca ``name`` property.
+        actions: Custom actions: name (as listed in ``SupportedActions``) to a channel whose value the
+            action returns as text (for example ``DewPointSpread``).
 
     Returns:
         An async action handler suitable for ``AlpacaDevice.handler``.
     """
+    actions = actions or {}
 
     device_state = {
         "average_period": 0.0,
@@ -51,7 +56,11 @@ def create_oc_handler(
             return {"Value": device_name}
 
         if action_lower == "description":
-            mapped = [k for k in channels if channels[k] is not None]
+            mapped = [
+                f"{k} (computed)" if channels[k].computed else k
+                for k in channels
+                if channels[k] is not None
+            ]
             return {
                 "Value": (
                     f"Sensors mapped to: "
@@ -157,6 +166,27 @@ def create_oc_handler(
                     ERROR_NOT_IMPLEMENTED, f"Sensor '{sensor_name}' not mapped"
                 )
             return {"Value": channel.description}
+
+        # --- Custom actions ---
+
+        if action_lower == "supportedactions":
+            return {"Value": list(actions)}
+
+        if action_lower == "action":
+            # PUT with the fields "Action" (the name) and "Parameters" (not used here, may be missing)
+            key = next((k for k in params if k.lower() == "action"), None)
+            if key != "Action":
+                return bad_request("Parameter 'Action' missing or bad casing")
+            wanted = str(params["Action"]).strip()
+            name = next((n for n in actions if n.lower() == wanted.lower()), None)
+            if name is None:
+                return driver_error(
+                    ERROR_ACTION_NOT_IMPLEMENTED, f"Action '{wanted}' is not implemented"
+                )
+            value = await actions[name].get_value()
+            if value is None:
+                return driver_error(ERROR_VALUE_NOT_SET, f"'{name}' has no value now")
+            return {"Value": f"{value:.1f}"}
 
         # --- Standard device info ---
 

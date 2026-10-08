@@ -51,6 +51,8 @@ class OCSensorChannel:
     get_value: Callable[[], Awaitable[float | None]]
     # None: no mapped sensor has a value
     get_seconds_since_update: Callable[[], Awaitable[float | None]]
+    # True: computed from other channels, not read from a mapped sensor
+    computed: bool = False
 
 
 @dataclass

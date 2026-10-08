@@ -42,7 +42,18 @@ class Setup:
         async def async_reload(entry_id):
             self.reloads.append(entry_id)
 
-        self.hass.config_entries = types.SimpleNamespace(async_reload=async_reload)
+        async def async_forward_entry_setups(entry, platforms):
+            self.platforms = list(platforms)
+
+        async def async_unload_platforms(entry, platforms):
+            return True
+
+        self.platforms = None
+        self.hass.config_entries = types.SimpleNamespace(
+            async_reload=async_reload,
+            async_forward_entry_setups=async_forward_entry_setups,
+            async_unload_platforms=async_unload_platforms,
+        )
         self.entry = types.SimpleNamespace(
             entry_id="E",
             options=options or {},
@@ -202,3 +213,62 @@ def test_a_removed_and_added_again_server_keeps_the_registered_devices():
     assert setup.registry is registry
     assert setup.registry.get_device("safetymonitor", 0) is external
     assert asyncio.run(external.handler("issafe", {})) == {"Value": True}
+
+
+# ---- computed values: sensors that appear or disappear ----------------------------------------------------------------
+OC_T_H = {"temperature": ["sensor.t"], "humidity": ["sensor.h"]}  # the dew point and the spread are computed
+
+
+def derived_of(setup):
+    return setup.hass.data[const.DOMAIN]["E"][const.DATA_DERIVED]
+
+
+def test_the_sensor_platform_is_set_up_with_the_integration():
+    assert Setup().platforms == ["sensor"]
+
+
+def test_the_platforms_are_unloaded_with_the_integration_and_a_refusal_keeps_it_loaded():
+    setup = Setup()
+
+    async def refuse(entry, platforms):
+        return False
+
+    setup.hass.config_entries.async_unload_platforms = refuse
+    assert asyncio.run(integration.async_unload_entry(setup.hass, setup.entry)) is False
+    assert "E" in setup.hass.data[const.DOMAIN]  # still there
+
+
+def test_a_mapping_that_keeps_the_computed_values_is_rebuilt_in_place():
+    setup = Setup({"observing_conditions": OC_T_H})
+    before = derived_of(setup)
+    assert before.flags == (True, True)
+
+    setup.change(observing_conditions={"temperature": ["sensor.t2"], "humidity": ["sensor.h2"]})
+
+    assert setup.reloads == []
+    assert derived_of(setup) is not before  # the sensors read the new channels at their next update
+    assert FakeServer.starts == 1
+
+
+def test_mapping_a_dew_point_makes_the_computed_dew_point_disappear_by_a_reload():
+    setup = Setup({"observing_conditions": OC_T_H})
+    setup.change(observing_conditions={**OC_T_H, "dewpoint": ["sensor.d"]})
+    assert setup.reloads == ["E"]  # (True, True) -> (False, True)
+
+
+def test_a_mapping_without_humidity_makes_both_disappear_by_a_reload():
+    setup = Setup({"observing_conditions": OC_T_H})
+    setup.change(observing_conditions={"temperature": ["sensor.t"]})
+    assert setup.reloads == ["E"]  # (True, True) -> (False, False)
+
+
+def test_the_first_mapping_with_temperature_and_humidity_makes_the_sensors_appear_by_a_reload():
+    setup = Setup()
+    setup.change(observing_conditions=OC_T_H)
+    assert setup.reloads == ["E"]  # (False, False) -> (True, True)
+
+
+def test_a_mapping_that_computes_nothing_before_and_after_does_not_reload():
+    setup = Setup({"observing_conditions": {"temperature": ["sensor.t"]}})
+    setup.change(observing_conditions={"temperature": ["sensor.t"], "windspeed": ["sensor.w"]})
+    assert setup.reloads == []

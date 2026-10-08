@@ -15,12 +15,15 @@ from .const import (
     ALPACA_SERVER_API_KEY,
     CONF_ALPACA_DISCOVERY,
     CONF_ALPACA_PORT,
+    DATA_DERIVED,
+    DATA_FLAGS,
     DATA_LISTEN,
     DATA_REGISTRY,
     DATA_SERVER,
     DEFAULT_ALPACA_DISCOVERY,
     DEFAULT_ALPACA_PORT,
     DOMAIN,
+    PLATFORMS,
 )
 from .ha_bridge import rebuild_devices
 
@@ -41,7 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[ALPACA_SERVER_API_KEY]["registry"] = registry
 
     # Build internal devices via the HA bridge
-    rebuild_devices(registry, hass, entry.options)
+    derived = rebuild_devices(registry, hass, entry.options)
 
     port, discovery = _listen_settings(entry)
 
@@ -60,6 +63,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DATA_REGISTRY: registry,
         DATA_SERVER: server,
         DATA_LISTEN: (port, discovery),
+        DATA_DERIVED: derived,
+        DATA_FLAGS: derived.flags,
     }
 
     # Expose the external registration API for client integrations.
@@ -74,6 +79,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[ALPACA_SERVER_API_KEY]["async_register_device"] = _async_register_device
 
+    # The sensors of the computed values (dew point, dew point spread)
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
     # Listen for options changes
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -87,6 +95,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload ASCOM Alpaca Server."""
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
+
     data = hass.data[DOMAIN].pop(entry.entry_id, {})
     server: AlpacaServer | None = data.get(DATA_SERVER)
 
@@ -121,13 +132,18 @@ async def _async_update_listener(
     """Handle an options update.
 
     Only the port and the discovery need a restart of the server. A new mapping just builds the devices
-    again: the listener keeps running and the clients stay connected.
+    again: the listener keeps running and the clients stay connected. The one exception is a mapping that
+    makes a computed value appear or disappear (dew point, dew point spread): its sensor is created or
+    removed by a reload.
     """
     data = hass.data[DOMAIN].get(entry.entry_id)
     if data is not None and _listen_settings(entry) == data[DATA_LISTEN]:
-        _LOGGER.info("Mappings changed, rebuilding the devices")
-        rebuild_devices(data[DATA_REGISTRY], hass, entry.options)
-        return
-
-    _LOGGER.info("Port or discovery changed, reloading ASCOM Alpaca Server")
+        derived = rebuild_devices(data[DATA_REGISTRY], hass, entry.options)
+        if derived.flags == data[DATA_FLAGS]:
+            _LOGGER.info("Mappings changed, rebuilt the devices")
+            data[DATA_DERIVED] = derived
+            return
+        _LOGGER.info("The computed dew point values changed, reloading ASCOM Alpaca Server")
+    else:
+        _LOGGER.info("Port or discovery changed, reloading ASCOM Alpaca Server")
     await hass.config_entries.async_reload(entry.entry_id)

@@ -54,6 +54,8 @@ COMMAND_ACTIONS = frozenset(
         "haltcover",
         # ObservingConditions
         "refresh",
+        # every device type: a custom action of the device
+        "action",
     }
 )
 
